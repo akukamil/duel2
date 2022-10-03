@@ -1584,16 +1584,8 @@ mp_game = {
 		
 		obj_to_follow = 'enemy';
 	
-	},
-		
-	process_bet : function() {
-		
-		
-	
-		
-		
-	},
-	
+	},		
+
 	giveup : async function() {
 		
 		if (this.made_moves < 3) {
@@ -1827,7 +1819,7 @@ game = {
 		objects.enemy.play_anim(skl_throw);	
 		
 		//запускаем снаряд
-		let projectile = projectiles.add({	Q : move_data[0],
+		let projectile = game.add_projectile({	Q : move_data[0],
 							P : move_data[1],
 							spear : objects.enemy.projectile_2.texture,
 							target : objects.player,
