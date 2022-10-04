@@ -1,11 +1,11 @@
 var M_WIDTH=800, M_HEIGHT=450;
 var app, game_res, game, objects = {}, LANG = 0, state="", game_tick = 0, game_id = 0, connected = 1, client_id =0, h_state = 0, game_platform = "",
 hidden_state_start = 0,room_name = 'states', pending_player = '', opponent = {}, my_data={opp_id : ''},
-opp_data={}, some_process = {}, git_src = '', ME = 0, OPP = 1, WIN = 1, DRAW = 0, LOSE = -1, NOSYNC = 2, my_turn = 1, skl_prepare, skl_throw, skl_lose, drag = 0, obj_to_follow = null;
+opp_data={}, some_process = {}, git_src = '', ME = 0, OPP = 1, WIN = 1, DRAW = 0, LOSE = -1, NOSYNC = 2, my_turn = 1, skl_prepare, skl_throw, skl_lose, drag = 0, obj_to_follow = null, my_player = null, opp_player = null, cont_inv = 1;
 
 var col_data=[['head','spine',[[-11,-19],[-1,-25],[9,-21],[12,-12],[9,-4],[0,0]]],['spine','spine',[[-1,-3],[0,29]]],['left_leg1','left_leg1',[[-14,-1],[16,-1]]],['left_leg2','left_leg2',[[-13,-3],[14,-3]]],['right_leg1','right_leg1',[[-14,-1],[16,-1]]],['right_leg2','right_leg2',[[13,2],[-13,2]]],['left_arm1','left_arm1',[[14,0],[-13,0]]],['left_arm2','left_arm2',[[-12,-1],[14,-1]]],['right_arm1','right_arm1',[[-15,0],[12,0]]],['right_arm2','right_arm2',[[-14,0],[12,0]]]];
 
-const col_data2=[[[1420,370],[1210,370],[1210,50],[1420,50],[1420,370]],[[980,220],[770,220],[770,120],[980,120],[980,220]],[[710,430],[20,430],[20,350],[710,350],[710,430]],[[2410,430],[1720,430],[1720,350],[2410,350],[2410,430]]];
+const col_data2=[[[1130,700],[920,700],[920,380],[1130,380],[1130,700]],[[1070,320],[860,320],[860,220],[1070,220],[1070,320]],[[710,430],[20,430],[20,350],[710,350],[710,430]],[[2410,430],[1720,430],[1720,350],[2410,350],[2410,430]]];
 
 irnd = function(min,max) {	
     min = Math.ceil(min);
@@ -417,96 +417,7 @@ class player_class extends PIXI.Container{
     shift_height(h_dist) {
         anim.add_pos({obj: this, param: 'y',  vis_on_end: true,  func: 'easeOutBack', val: ['y', this.sy + h_dist], speed: 0.02 });
     };
-			
-	calc_next_fire(del_q) {
-
-		let x0 = objects.enemy.x+objects.enemy.width/2;
-		let y0 = objects.enemy.y+50;
-
-		let x1 = objects.player.x+objects.player.width/2;
-		let y1 = objects.player.y+65;
-		
-		let dx=x0-x1;
-		let dh=y1-y0;
-		
-		//вычисляем угол между точкой запуском и целью
-		let Q1= Math.atan2(dh, dx);		
-
-		//добавляем еще угол чтобы запуск происходил по дуге
-		let Q=Q1-del_q;
-		
-		let v1=(x0-x1)/Math.cos(Q);
-		let v2=0.5*9.8/(dh-Math.tan(Q)*dx)
-		let v0=v1*Math.sqrt(v2);
 				
-		this.next_q=Q;
-		this.next_v=v0
-		
-	};
-	
-	calc_next_fire2(v0) {
-
-		v0=v0*33+50;
-		v0>150&&(v0=150);
-		
-		let x0 = objects.enemy.x-80;
-		let y0 = objects.enemy.y+30;
-
-		let x1 = objects.player.x+80;
-		let y1 = objects.player.y+66;
-		
-		let dx=x0-x1;
-		let dh=y1-y0;
-		
-		//решение уравнения взято отсюда https://www.youtube.com/watch?v=32PiZDW40VI
-		let R=dx/v0; R=R*R*4.9;
-		let a=R;
-		let b=dx;
-		let c=R-dh;
-		let D=b * b - (4 * a * c);
-		
-		let Q1=0;
-		
-		if (D>=0){			
-			let root = Math.sqrt(D);			
-			let tanQ1 = (-b + root) / (2 * a);
-			//let tanQ2 = (-b - root) / (2 * a);			
-			Q1=Math.atan(tanQ1);
-		} else {			
-			Q1=-Math.random()
-		}
-		
-		
-		console.log(Q1*180/3.14);
-		this.next_q=Q1;
-		this.next_v=v0
-		
-	};
-			
-	calc_v0_for_Q(del_q) {
-		
-		let x0 = objects.enemy.x-80;
-		let y0 = objects.enemy.y+30;
-
-		let x1 = objects.player.x+80;
-		let y1 = objects.player.y+66;
-		
-		let dx=x0-x1;
-		let dh=y1-y0;
-		
-		//вычисляем угол между точкой запуском и целью
-		let Q1= Math.atan2(dh, dx);		
-
-		//добавляем еще угол чтобы запуск происходил по дуге
-		let Q=Q1-del_q;
-		
-		let v1=(x0-x1)/Math.cos(Q);
-		let v2=0.5*9.8/(dh-Math.tan(Q)*dx)
-		let v0=v1*Math.sqrt(v2);
-				
-		return [Q, v0];		
-	}
-			
 	decrease_life(val) {
 		
 		let new_lev=this.life_level-val;
@@ -647,190 +558,6 @@ class player_class extends PIXI.Container{
 	
 	};
 	
-	process_wait_burn_after_freeze(init) {
-		
-		if (init===1) {			
-			this.process_start_time=game_tick;		
-			this.process_func=this.process_wait_burn_after_freeze;
-		}		
-		
-		if (game_tick-this.process_start_time> this.wait_burn_after_freeze) {
-			
-			//считаем угол под которым надо запустить
-			this.next_del_q=rnd2(this.pref_dev_ang[0],this.pref_dev_ang[1]);
-			let res=this.calc_v0_for_Q(this.next_del_q);
-			let v0_needed=res[1];
-
-			//запускаем снаряд с установленными параметрами
-			this.send_projectile('fire' , res[0] , v0_needed);
-			
-		}
-		
-	};
-	
-	process_buildup(init) {
-		
-		if (init===1) {			
-			this.process_start_time=game_tick;		
-			this.process_func=this.process_buildup;
-			
-			//выбираем угол следующего удара
-			this.next_del_q=rnd2(this.pref_dev_ang[0],this.pref_dev_ang[1]);
-						
-			return;
-		}
-				
-		//общие функции
-		this.process_common();
-		
-		if (this.frozen===1) return;		
-		
-		//сканируем копья чтобы активировать блок
-		this.scan_projectiles();
-				
-		//считаем сколько силы надо для заданного угла
-		let res=this.calc_v0_for_Q(this.next_del_q);
-		let v0_needed=res[1];
-		let available_power=(game_tick-this.process_start_time)*30+50;
-		
-		
-		//следущий бросок только когда накопим силы для заданного угла		
-		if (available_power>v0_needed) {							
-
-			//вероятность опций
-			let opt_prob=[this.smart_0_prob,this.smart_1_prob,this.freeze_prob,this.fire_prob,this.s_prob];
-			let opt_av=[0,0,0,0,1];
-			let opt_av_norm=[0,0,0,0,0];
-						
-	
-						
-			//проверяем доступна ли заморозка
-			if (this.powers.freeze>0 && game_tick>this.powers_fire_time[1]+5) {
-				opt_av[2]=1;
-			};
-			
-			//проверяем доступен ли огонь
-			if (this.powers.fire>0 && game_tick>this.powers_fire_time[2]+5) {
-				opt_av[3]=1;
-			};
-
-			//проверяем доступен ли смарт брокок
-			let no_block_time=game_tick-power_buttons.rem_time.block;
-			if (no_block_time>1.8 && no_block_time<4.9 && (opt_av[2] === 1 || opt_av[3] === 1))
-				opt_av[0]=1;
-			
-			//проверяем доступен ли смарт афтефриз огонь
-			if (objects.player.frozen === 1 && opt_av[3] === 1) {				
-				let frozen_time = game_tick - objects.player.frozen_start;
-				if (frozen_time<3.5) {
-					opt_av[1]=1;
-					this.wait_burn_after_freeze=3.5-frozen_time;
-				}					
-			}	
-
-
-
-
-
-			//создаем массив вероятностей доступных опций
-			let sum = 0;
-			for (let i = 0 ; i < 5 ; i ++ ) {				
-				if ( opt_av[i] === 1) {
-					opt_av_norm[i] = opt_prob[i];
-					sum += opt_prob[i];					
-				}
-			}
-			
-			//нормализуем
-			for (let i = 0 ; i < 5 ; i ++ )
-				opt_av_norm[i] = opt_av_norm[i] / sum;
-
-			//выбираем опцию запуска
-			let rnum=rnd();
-			let cum_val=0;
-			let opt=4;
-			for (let i = 0 ; i < 5 ; i ++ ) {
-				let r0=cum_val;
-				let r1=cum_val+opt_av_norm[i];
-				cum_val=r1;		
-				
-				if (rnum>=r0 && rnum<r1)
-					opt=i;
-			}
-				
-			
-				
-			if (opt === 4) {
-				//console.log('Простой запуск');
-				this.send_projectile('none' , res[0] , v0_needed);			
-			}
-			
-			if (opt === 3) {
-				//console.log('Запуск огня');		
-				this.send_projectile('fire' , res[0] , v0_needed);
-			}
-			
-			if (opt === 2) {
-				//console.log('Запуск фриза');
-				this.send_projectile('freeze' , res[0] , v0_needed);			
-			}
-			
-			//смарт огонь афтефриз
-			if (opt === 1) {				
-				//console.log('Смарт огонь афтефриз');
-				this.process_wait_burn_after_freeze(1);				
-			}
-			
-			//смарт огонь или фриз когда нет блока
-			if (opt === 0) {		
-				
-				let freeze_fire_opt=opt_av[3]-opt_av[2];
-				let power="none";
-				freeze_fire_opt === 1 &&  (power = 'fire');
-				freeze_fire_opt === -1 &&  (power = 'freeze');
-				freeze_fire_opt === 0 &&  (rnd()>0.5 ? power = 'fire' : power = 'freeze');
-							
-				//console.log('Самарт ноу блок '+power);				
-				this.send_projectile(power , res[0] , v0_needed);		
-			}
-
-			
-		}			
-		
-	};
-	
-	send_projectile(power , ang , v) {
-		
-		//добавляем установленную рандомную дельту к углу
-		let error_to_ang=rnd2(this.dev_ang_error[0],this.dev_ang_error[1]);
-		let result_angle_delta=ang - error_to_ang;
-		
-		//console.log(`Добавлена ошибка ${error_to_ang}`);
-		
-		//запускаем снаряд
-		projectiles.add({	Q : result_angle_delta,
-							P : v,
-							spear : this.projectile_2.texture,
-							target : objects.player,
-							power : power});
-							
-		gres.throw.sound.play();	
-		
-		//уменьшаем количество
-		this.powers[power]--;
-		//console.log(this.powers);
-			
-		//убираем копье и возвращаем его через некоторое время
-		objects.enemy.projectile.visible=objects.enemy.zz_projectile.visible=false;
-		setTimeout(function(){objects.enemy.projectile.visible=objects.enemy.zz_projectile.visible=true},700);			
-					
-		//запускаем анимацию
-		skl_anim.activate(1,skl_throw);
-		
-		//возвращаемся в режим ожидания
-		this.process_idle(1);	
-	}
-		
 	set_skin_by_id(id) {
 		
 		let skin_prefix=""
@@ -874,8 +601,6 @@ class player_class extends PIXI.Container{
 		//устанавливаем текстуры
 		this.set_skin_by_id();
 						
-		//заранее вычисляем когда и как будет направлен следующий снаряд
-		this.calc_next_fire();
 		
 		//устанавливаем вид игрока
 		skl_anim.goto_frame(this,skl_throw,0);
@@ -952,22 +677,28 @@ class projectile_class extends PIXI.Container {
 		
 		this.target = params.target;
 		
-		anim2.add(objects.game_cont,{scale_xy:[1,0.5]}, true, 7,'ease2back');
+		if (objects.game_cont.scale_x < 0) {			
+			anim2.add(objects.game_cont,{scale_x:[-1,-0.5],scale_y:[1,0.5]}, true, 7,'ease2back');
+		} else {
+			anim2.add(objects.game_cont,{scale_xy:[1,0.5]}, true, 7,'ease2back');	
+		}
 
-		if (this.target.name === "player") {
+		
+
+		if (this.target.name === "player1") {
 			
 			this.vx0=-this.vx0;				
-			this.x0 = objects.enemy.x-20;
-			this.y0 = objects.enemy.y+50;
+			this.x0 = objects.player2.x-20;
+			this.y0 = objects.player2.y+50;
 			this.scale.x=1;
 			
 		} else {
 			
 			//запускаем снаряд в зависимости от наклона тела
-			let dxv=Math.sin(objects.player.spine.rotation);
-			let dyv=-Math.cos(objects.player.spine.rotation);			
-			this.x0 = objects.player.x+20;
-			this.y0 = objects.player.y+50;
+			let dxv=Math.sin(objects.player1.spine.rotation);
+			let dyv=-Math.cos(objects.player1.spine.rotation);			
+			this.x0 = objects.player1.x+20;
+			this.y0 = objects.player1.y+50;
 			this
 			.scale.x=-1;
 		}
@@ -1044,6 +775,8 @@ class projectile_class extends PIXI.Container {
 		if (this.visible === false)
 			return;
 		
+		
+		//console.log(objects.game_cont.scale_x,objects.game_cont.scale_y,objects.game_cont.scale_xy);
 		let vx=this.vx0;
 		let vy=9.8*this.t+this.vy0;
 
@@ -1582,7 +1315,8 @@ mp_game = {
 		
 	incoming_move_finished : function() {
 		
-		obj_to_follow = 'enemy';
+		console.log('Прилетело копье к оппоненту ',objects.game_cont.scale_x);
+		obj_to_follow = opp_player;
 	
 	},		
 
@@ -1667,29 +1401,29 @@ sp_game = {
 		
 	incoming_move_finished : async function() {
 		
-		obj_to_follow = 'enemy';
+		obj_to_follow = opp_player;
 		console.log('incoming_move_finished');
 		
 		await new Promise((resolve, reject) => {setTimeout(resolve, 2000);});
 		
 		//запускаем анимацию
-		objects.enemy.play_anim(skl_throw);			
+		objects[opp_player].play_anim(skl_throw);			
 		
-		//запускаем снаряд
+		//запускаем снаряд бота
 		let projectile = game.add_projectile({	Q : -0.8,
 							P : rnd2(60,160),
-							spear : objects.enemy.projectile_2.texture,
+							spear : objects[opp_player].projectile_2.texture,
 							target : objects.player,
 							power : 30,
 							finish_callback : game.incoming_move_finished.bind(game)							
 							});
 				
 		obj_to_follow = projectile;
-		objects.enemy.projectile.visible = false;
-		objects.enemy.zz_projectile.visible = false;
+		objects[opp_player].projectile.visible = false;
+		objects[opp_player].zz_projectile.visible = false;
 		
 		
-		setTimeout(function(){objects.enemy.projectile.visible=true;objects.enemy.zz_projectile.visible=true},1700);	
+		setTimeout(function(){objects[opp_player].projectile.visible=true;objects[opp_player].zz_projectile.visible=true},1700);	
 
 		
 	},
@@ -1731,11 +1465,12 @@ game = {
 	activate : async function(start_player, opponent){
 		
 		this.opponent = opponent;
-		if (start_player === ME)
-			my_turn =1
-		else
-			my_turn =0
 		
+		if (start_player === ME)
+			my_turn = 1
+		else
+			my_turn = 0
+				
 		this.start_time = game_tick;
 		
 		//если открыт лидерборд то закрываем его
@@ -1760,20 +1495,29 @@ game = {
 		this.start_player = start_player;	
 		
 		objects.game_cont.visible = true;
-		objects.player.set_skin_by_prefix('s0_');
-		objects.enemy.set_skin_by_prefix('s0_');
+		objects.player1.set_skin_by_prefix('s0_');
+		objects.player2.set_skin_by_prefix('s0_');
 		
 		//устанавливаем вид игрока
-		objects.player.skl_anim_goto_frame(skl_throw,0);
-		objects.enemy.skl_anim_goto_frame(skl_throw,0);
+		objects.player1.skl_anim_goto_frame(skl_throw,0);
+		objects.player2.skl_anim_goto_frame(skl_throw,0);
 		
 		//персчитываем коллизии
-		objects.player.update_collision();
-		objects.enemy.update_collision();
+		objects.player1.update_collision();
+		objects.player2.update_collision();
 		
 		some_process.game = this.process.bind(this);
 		objects.desktop.interactive = true;
-		obj_to_follow = ['player','enemy'][start_player];
+		my_player = ['player1','player2'][start_player];
+		opp_player = ['player1','player2'][1 - start_player];
+		
+		if (start_player === ME)
+			obj_to_follow = my_player;
+		else
+			obj_to_follow = opp_player;
+		
+		if (start_player === OPP)
+			objects.game_cont.scale_x = -1;
 		
 		
 		
@@ -1782,14 +1526,14 @@ game = {
 	process : function() {
 		
 		
-		if (obj_to_follow === 'player') {
-			this.tar_pivot_x = objects.player.x + objects.player.projectile.x;
-			this.tar_pivot_y = objects.player.y + objects.player.projectile.y;		
+		if (obj_to_follow === 'player1') {
+			this.tar_pivot_x = objects.player1.x + objects.player1.projectile.x;
+			this.tar_pivot_y = objects.player1.y + objects.player1.projectile.y;		
 		}
 		
-		if (obj_to_follow === 'enemy') {
-			this.tar_pivot_x = objects.enemy.x - objects.enemy.projectile.x;
-			this.tar_pivot_y = objects.enemy.y + objects.enemy.projectile.y;		
+		if (obj_to_follow === 'player2') {
+			this.tar_pivot_x = objects.player2.x - objects.player2.projectile.x;
+			this.tar_pivot_y = objects.player2.y + objects.player2.projectile.y;		
 		}
 		
 		if (obj_to_follow!== null && typeof(obj_to_follow) === 'object') {
@@ -1815,26 +1559,37 @@ game = {
 
 	incoming_move : function(move_data) {
 		
+		//получение хода от игрока другого
+		
+		
 		//запускаем анимацию
-		objects.enemy.play_anim(skl_throw);	
+		objects[opp_player].play_anim(skl_throw);	
 		
 		//запускаем снаряд
 		let projectile = game.add_projectile({	Q : move_data[0],
 							P : move_data[1],
-							spear : objects.enemy.projectile_2.texture,
-							target : objects.player,
+							spear : objects[opp_player].projectile_2.texture,
+							target : objects[my_player],
 							power : 30,
 							finish_callback : game.incoming_move_finished.bind(game)							
 							});
 							
 		obj_to_follow = projectile;
-		objects.enemy.projectile.visible = false;
-		objects.enemy.zz_projectile.visible = false;		
+		objects[opp_player].projectile.visible = false;
+		objects[opp_player].zz_projectile.visible = false;		
 		
-		setTimeout(function(){objects.enemy.projectile.visible=true;objects.enemy.zz_projectile.visible=true},1700);	
+		setTimeout(function(){objects[opp_player].projectile.visible=true;objects[opp_player].zz_projectile.visible=true},1700);	
 		
 	},
-
+	
+	incoming_move_finished : function() {
+		
+		console.log('Прилетело копье ко мне ',objects.game_cont.scale_x);
+		my_turn = 1;	
+		obj_to_follow = my_player;
+		
+	},
+	
 	add_projectile : function(params) {
 		
 		//ищем свободное копье
@@ -1848,13 +1603,6 @@ game = {
 		//если не нашли пустую
 		objects.projectiles[p].activate(params);
 		return objects.projectiles[p];
-		
-	},
-
-	incoming_move_finished : function() {
-		
-		my_turn = 1;	
-		obj_to_follow = 'player';
 		
 	},
 
@@ -1946,7 +1694,7 @@ touch = {
 
 			this.Q = Math.atan2(dy, dx);
 			this.Q = Math.max(-0.9, Math.min(this.Q, 0.758398));
-			objects.player.skl_anim_tween(skl_prepare,0.5+this.Q/0.785398/2);
+			objects[my_player].skl_anim_tween(skl_prepare,0.5+this.Q/0.785398/2);
 
 			//обновляем данные на основе корректированной длины
 			this.touch_data.x1 = this.touch_data.x0 + this.touch_len * Math.cos(this.Q);
@@ -1959,8 +1707,8 @@ touch = {
 			
 			
 			//отображаем направляющую в зависимости от наклона тела
-			let dxv=Math.sin(objects.player.spine.rotation);
-			let dyv=-Math.cos(objects.player.spine.rotation);			
+			let dxv=Math.sin(objects[my_player].spine.rotation);
+			let dyv=-Math.cos(objects[my_player].spine.rotation);			
 			//objects.dir_line.x = objects.player.x+objects.player.spine.x+dxv*30;
 			//objects.dir_line.y = objects.player.y+objects.player.spine.y+dyv*30;
 			
@@ -1985,8 +1733,8 @@ touch = {
         let projectile = game.add_projectile({
 			Q : Q,
 			P : P,
-			target : objects.enemy,
-			spear : objects.player.projectile_2.texture,
+			target : objects[opp_player],
+			spear : objects[my_player].projectile_2.texture,
 			power : 30,
 			finish_callback : game.opponent.incoming_move_finished.bind(game)
 		});		
@@ -1998,13 +1746,13 @@ touch = {
 		game.opponent.send_move(Q,P);
 		
 		//запускаем анимацию
-		objects.player.play_anim(skl_throw);
-		objects.player.projectile.visible = false;
-		objects.player.zz_projectile.visible = false;
+		objects[my_player].play_anim(skl_throw);
+		objects[my_player].projectile.visible = false;
+		objects[my_player].zz_projectile.visible = false;
 
 			
 		
-		setTimeout(function(){objects.player.projectile.visible=true;objects.player.zz_projectile.visible=true},1700);	
+		setTimeout(function(){objects[my_player].projectile.visible=true;objects[my_player].zz_projectile.visible=true},1700);	
 
     },
 	
@@ -2495,7 +2243,7 @@ feedback = {
 			if (objects.feedback_msg.text === '') return;
 			
 			//если нашли ненормативную лексику то закрываем
-			let mats = /(?<=^|[^а-я])(([уyu]|[нзnz3][аa]|(хитро|не)?[вvwb][зz3]?[ыьъi]|[сsc][ьъ']|(и|[рpr][аa4])[зсzs]ъ?|([оo0][тбtb6]|[пp][оo0][дd9])[ьъ']?|(.\B)+?[оаеиeo])?-?([еёe][бb6](?!о[рй])|и[пб][ае][тц]).*?|([нn][иеаaie]|([дпdp]|[вv][еe3][рpr][тt])[оo0]|[рpr][аa][зсzc3]|[з3z]?[аa]|с(ме)?|[оo0]([тt]|дно)?|апч)?-?[хxh][уuy]([яйиеёюuie]|ли(?!ган)).*?|([вvw][зы3z]|(три|два|четыре)жды|(н|[сc][уuy][кk])[аa])?-?[бb6][лl]([яy](?!(х|ш[кн]|мб)[ауеыио]).*?|[еэe][дтdt][ь']?)|([рp][аa][сзc3z]|[знzn][аa]|[соsc]|[вv][ыi]?|[пp]([еe][рpr][еe]|[рrp][оиioеe]|[оo0][дd])|и[зс]ъ?|[аоao][тt])?[пpn][иеёieu][зz3][дd9].*?|([зz3][аa])?[пp][иеieu][дd][аоеaoe]?[рrp](ну.*?|[оаoa][мm]|([аa][сcs])?([иiu]([лl][иiu])?[нщктлtlsn]ь?)?|([оo](ч[еиei])?|[аa][сcs])?[кk]([оo]й)?|[юu][гg])[ауеыauyei]?|[мm][аa][нnh][дd]([ауеыayueiи]([лl]([иi][сзc3щ])?[ауеыauyei])?|[оo][йi]|[аоao][вvwb][оo](ш|sh)[ь']?([e]?[кk][ауеayue])?|юк(ов|[ауи])?)|[мm][уuy][дd6]([яyаиоaiuo0].*?|[еe]?[нhn]([ьюия'uiya]|ей))|мля([тд]ь)?|лять|([нз]а|по)х|м[ао]л[ао]фь([яию]|[её]й))(?=($|[^а-я]))/i;
+			let mats = /шлю[хш]|п[еи]д[аеор]|суч?ка|г[ао]ндо|х[ую][ейяе]л?|жоп|соси|чмо|говн|дерьм|трах|секс|сосат|выеб|пизд|срал|уеб[аико]щ?|ебень?|ебу[ч]|ху[йия]|еба[нл]|дроч|еба[тш]|педик|[ъы]еба|ебну|ебл[ои]|ебись|сра[кч]|манда|еб[лн]я|ублюд|пис[юя]/i;
 			let text_no_spaces = objects.feedback_msg.text.replace(/ /g,'');
 			if (text_no_spaces.match(mats)) {
 				this.close();
@@ -4091,7 +3839,7 @@ async function define_platform_and_language(env) {
 	if (s.includes('192.168')) {
 			
 		game_platform = 'DEBUG';	
-		LANG = await language_dialog.show();
+		LANG = 0;
 		return;	
 	}	
 	
