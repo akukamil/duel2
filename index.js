@@ -5,7 +5,7 @@ opp_data={}, some_process = {}, git_src = '', ME = 0, OPP = 1, WIN = 1, DRAW = 0
 
 var col_data=[['head','spine',[[-11,-19],[-1,-25],[9,-21],[12,-12],[9,-4],[0,0]]],['spine','spine',[[-1,-3],[0,29]]],['left_leg1','left_leg1',[[-14,-1],[16,-1]]],['left_leg2','left_leg2',[[-13,-3],[14,-3]]],['right_leg1','right_leg1',[[-14,-1],[16,-1]]],['right_leg2','right_leg2',[[13,2],[-13,2]]],['left_arm1','left_arm1',[[14,0],[-13,0]]],['left_arm2','left_arm2',[[-12,-1],[14,-1]]],['right_arm1','right_arm1',[[-15,0],[12,0]]],['right_arm2','right_arm2',[[-14,0],[12,0]]]];
 
-const col_data2=[[[1130,700],[920,700],[920,380],[1130,380],[1130,700]],[[1070,320],[860,320],[860,220],[1070,220],[1070,320]],[[710,430],[20,430],[20,350],[710,350],[710,430]],[[2410,430],[1720,430],[1720,350],[2410,350],[2410,430]]];
+var map_col_data=[];
 
 irnd = function(min,max) {	
     min = Math.ceil(min);
@@ -130,102 +130,6 @@ class lb_player_card_class extends PIXI.Container{
 	}
 
 
-}
-
-class chat_record_class extends PIXI.Container {
-	
-	constructor() {
-		
-		super();
-		
-		this.tm = 0;
-		this.msg_id = 0;
-		
-		this.avatar = new PIXI.Sprite(PIXI.Texture.WHITE);
-		this.avatar.width = this.avatar.height = 30;
-
-		
-		this.name = new PIXI.BitmapText('Имя Фамил', {fontName: 'mfont',fontSize: 17,align: 'left'});
-		this.name.x=35;
-		this.name.y=15;
-		this.name.anchor.set(0,0.5);
-		this.name.maxWidth = 75;
-		
-		this.msg = new PIXI.BitmapText('Имя Фамил', {fontName: 'mfont',fontSize: 20,align: 'left'}); 
-		this.msg.x=135;
-		this.msg.y=5;
-		
-		this.visible = false;
-		this.addChild(this.avatar, this.name, this.msg);
-		
-	}
-	
-	async update_avatar(uid, tar_sprite) {
-		
-		
-		let pic_url = '';
-		//если есть в кэше то =берем оттуда если нет то загружаем
-		if (cards_menu.uid_pic_url_cache[uid] !== undefined) {
-			
-			pic_url = cards_menu.uid_pic_url_cache[uid];
-			
-		} else {
-			
-			pic_url = await firebase.database().ref("players/" + uid + "/pic_url").once('value');		
-			pic_url = pic_url.val();			
-			cards_menu.uid_pic_url_cache[uid] = pic_url;
-		}
-		
-
-		
-		//сначала смотрим на загруженные аватарки в кэше
-		if (PIXI.utils.TextureCache[pic_url]===undefined || PIXI.utils.TextureCache[pic_url].width===1) {
-
-			//загружаем аватарку игрока
-			let loader=new PIXI.Loader();
-			loader.add("pic", pic_url,{loadType: PIXI.LoaderResource.LOAD_TYPE.IMAGE, timeout: 3000});
-			
-			let texture = await new Promise((resolve, reject) => {				
-				loader.load(function(l,r) {	resolve(l.resources.pic.texture)});
-			})
-			
-			if (texture.width === 1) {
-				texture = PIXI.Texture.WHITE;
-				texture.tint = this.msg.tint;
-			}
-			
-			tar_sprite.texture = texture;
-			
-		}
-		else
-		{
-			//загружаем текустуру из кэша
-			//console.log(`Текстура взята из кэша ${pic_url}`)	
-			tar_sprite.texture =  PIXI.utils.TextureCache[pic_url];
-		}
-		
-	}
-	
-	async set(uid, name, msg, tm, msg_id) {
-						
-		//получаем pic_url из фб
-		this.avatar.texture=PIXI.Texture.WHITE;
-		await this.update_avatar(uid, this.avatar);
-
-		this.tm = tm;
-			
-		this.msg_id = msg_id;
-		
-		if (name.length > 20) name = name.substring(0, 20);	
-		this.name.text=name;		
-		
-		this.msg.text=msg;
-
-		this.msg.tint = this.name.tint = 0xffffff*(Math.random()*0.001+0.999);
-		this.visible = true;
-		
-	}	
-	
 }
 
 class player_class extends PIXI.Container{
@@ -424,6 +328,13 @@ class player_class extends PIXI.Container{
 		new_lev=Math.max(0,new_lev);	
 		this.life_level=new_lev;
 		this.life_level_front.scale_x=this.life_level_base_scale*this.life_level*0.01;
+		
+		if (new_lev === 0) {					
+			if (this.name === my_player)
+				game.stop('my_lose');			
+			else
+				game.stop('my_win');
+		}
 	};
 	
 	make_frozen() {
@@ -594,28 +505,27 @@ class player_class extends PIXI.Container{
 		this.process_func=this.update_collision;
 	}
 	
-	init() {
+	init(skin_prefix) {
 		
 		this.visible=true;
 		
 		//устанавливаем текстуры
-		this.set_skin_by_id();
-						
+		this.set_skin_by_prefix(skin_prefix);						
 		
 		//устанавливаем вид игрока
-		skl_anim.goto_frame(this,skl_throw,0);
+		this.skl_anim_goto_frame(skl_throw,0);
 				
 		//устанавливаем начальные значения сил
-		this.set_life(skins_powers[this.skin_id][4]*10);
-		this.powers.block=skins_powers[this.skin_id][1];
-		this.powers.freeze=skins_powers[this.skin_id][2];
-		this.powers.fire=skins_powers[this.skin_id][3];
+		this.set_life(100);
+		//this.powers.block=skins_powers[this.skin_id][1];
+		//this.powers.freeze=skins_powers[this.skin_id][2];
+		//this.powers.fire=skins_powers[this.skin_id][3];
 		
 	}
 	
 	set_life(val) {		
 		this.life_level=val;
-		this.life_level_front.scale.x=this.life_level*0.01;		
+		this.life_level_front.scale_x=this.life_level_base_scale*this.life_level*0.01;
 	}
 
 }
@@ -832,9 +742,9 @@ class projectile_class extends PIXI.Container {
 						console.log('Collision: ' + limb_name)
 						
 						if (limb_name === 'head')
-							this.target.decrease_life(20)
+							this.target.decrease_life(50)
 						else
-							this.target.decrease_life(10)
+							this.target.decrease_life(40)
 						
 						//останавливаем копье
 						this.stop(res[0], res[1], this.target.cur_col[i][2], p);
@@ -843,9 +753,9 @@ class projectile_class extends PIXI.Container {
 			}	
 			
 			//проверяем столкновения с другими статичными объектами
-			for (let i=0;i<col_data2.length;i++) {
+			for (let i=0;i<map_col_data.length;i++) {
 				
-				const obj = col_data2[i];
+				const obj = map_col_data[i];
 				
 				for (let j = 0 ; j <obj.length -1 ; j++) {
 					
@@ -1214,42 +1124,19 @@ big_message = {
 	p_resolve : 0,
 	show_time : 0,
 		
-	show: async function(t1, feedback_on) {				
+	show: async function(t1,t2) {				
 				
 		this.show_time = Date.now();
-		this.feedback_on = feedback_on;
 				
-		objects.feedback_button.visible = feedback_on;
 		objects.big_message_text.text = t1;
+		objects.big_message_text2.text = t2;
 		anim2.add(objects.big_message_cont,{y:[600,objects.big_message_cont.sy]}, true, 0.6,'easeOutBack');		
 				
 		return new Promise(function(resolve, reject){					
 			big_message.p_resolve = resolve;	  		  
 		});
 	
-	},
-	
-	feedback_down : async function () {
-				
-		
-		if (objects.big_message_cont.ready===false) {
-			sound.play('locked');
-			return;			
-		}
-
-		anim2.add(objects.big_message_cont,{y:[objects.big_message_cont.sy,450]}, false, 0.4,'easeInBack');	
-		
-		//пишем отзыв и отправляем его		
-		let fb = await feedback.show(opp_data.uid);		
-		if (fb[0] === 'sent') {
-			let fb_id = irnd(0,50);			
-			await firebase.database().ref("fb/"+opp_data.uid+"/"+fb_id).set([fb[1], firebase.database.ServerValue.TIMESTAMP, my_data.name]);
-		
-		}
-		
-		this.p_resolve("close");
-				
-	},
+	},	
 
 	ok_down : function() {
 		
@@ -1406,6 +1293,8 @@ sp_game = {
 		
 		await new Promise((resolve, reject) => {setTimeout(resolve, 2000);});
 		
+		if (this.on === 0) return;
+		
 		//запускаем анимацию
 		objects[opp_player].play_anim(skl_throw);			
 		
@@ -1413,7 +1302,7 @@ sp_game = {
 		let projectile = game.add_projectile({	Q : -0.8,
 							P : rnd2(60,160),
 							spear : objects[opp_player].projectile_2.texture,
-							target : objects.player,
+							target : objects[my_player],
 							power : 30,
 							finish_callback : game.incoming_move_finished.bind(game)							
 							});
@@ -1421,15 +1310,19 @@ sp_game = {
 		obj_to_follow = projectile;
 		objects[opp_player].projectile.visible = false;
 		objects[opp_player].zz_projectile.visible = false;
-		
-		
+				
 		setTimeout(function(){objects[opp_player].projectile.visible=true;objects[opp_player].zz_projectile.visible=true},1700);	
-
 		
 	},
 
 	reset_timer : function() {
 		
+		
+	},
+			
+	stop : function() {
+		
+		this.on = 0;
 		
 	},
 			
@@ -1461,8 +1354,49 @@ game = {
 	tar_pivot_x:0,
 	tar_pivot_y:0,
 	opponent : {},
+	map_data : {},
 	
 	activate : async function(start_player, opponent){
+		
+		
+		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
+		var map_loader = new PIXI.Loader();	
+		map_loader.add("map_load_list", "map0/map_load_list.txt",{timeout: 5000});
+		map_loader.add("map_col_data", "map0/collisions.txt",{timeout: 5000});
+		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
+		
+		this.map_data = eval(map_loader.resources.map_load_list.data);
+		map_col_data = eval(map_loader.resources.map_col_data.data);
+		
+		//добавляем из листа загрузки карты
+		for (var i = 0; i < this.map_data.length; i++)
+			if (this.map_data[i].class === "sprite" || this.map_data[i].class === "image" )
+				map_loader.add(this.map_data[i].name, git_src+'map0/' + this.map_data[i].name + "." +  this.map_data[i].image_format);
+		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
+		
+		
+		//устанаваем объекты сцены
+		for (var i = 0; i < this.map_data.length; i++) {
+			const obj_class = this.map_data[i].class;
+			const obj_name = this.map_data[i].name;
+			console.log('Processing: ' + obj_name)
+
+			switch (obj_class) {
+			case "sprite":
+				objects[obj_name].texture = map_loader.resources[obj_name].texture;
+				eval(this.map_data[i].code0);
+				break;
+
+			case "block":
+				eval(this.map_data[i].code0);
+				break;
+
+			}
+		}
+		
+		//устанаваем фон
+		objects.bcg.texture = map_loader.resources.bcg.texture;
+			
 		
 		this.opponent = opponent;
 		
@@ -1477,15 +1411,19 @@ game = {
 		if (objects.lb_1_cont.visible===true)
 			lb.close();		
 		
-		//если открыт чат то закрываем его
-		if (objects.chat_cont.visible===true)
-			chat.close();
-		
 		//выключаем бота соперника если он работает
 		sp_game.switch_close();
 		
 		//активируем все что связано с онлайн или ботом
 		await opponent.activate();
+		
+		//убираем все стрелы
+		objects.projectiles.forEach(p => {
+			p.on = 0;
+			p.visible = false;
+		})
+		
+		//восстанавливаем жизни игроков
 		
 		//показыаем карточки
 		anim2.add(objects.my_card_cont,{x:[-100,objects.my_card_cont.sx]}, true, 0.6,'easeOutBack');	
@@ -1495,12 +1433,11 @@ game = {
 		this.start_player = start_player;	
 		
 		objects.game_cont.visible = true;
-		objects.player1.set_skin_by_prefix('s0_');
-		objects.player2.set_skin_by_prefix('s0_');
+
+		//инициируем игроков
+		objects.player1.init('s0_');
+		objects.player2.init('s0_');
 		
-		//устанавливаем вид игрока
-		objects.player1.skl_anim_goto_frame(skl_throw,0);
-		objects.player2.skl_anim_goto_frame(skl_throw,0);
 		
 		//персчитываем коллизии
 		objects.player1.update_collision();
@@ -1550,8 +1487,12 @@ game = {
 			
 		objects.game_cont.pivot.x += dx/10;
 		objects.game_cont.pivot.y += dy/10;
-			
+		objects.bcg.tilePosition.x-=dx/100;
+		objects.bcg.tilePosition.y-=dy/100;
 		}
+				
+		
+		objects.bcg.tileScale.x=objects.bcg.tileScale.y=Math.abs(objects.game_cont.scale_x)/4+0.75;
 				
 		objects.projectiles.forEach(p=>p.process());
 			
@@ -1606,25 +1547,33 @@ game = {
 		
 	},
 
+	stop : async function(result) {
+		
+		objects.desktop.interactive = false;
+		
+		this.opponent.stop();
+		await big_message.show('Игра окончена','Рейтинг 3-3');
+		this.close();
+		main_menu.activate();
+		
+		
+	},
+
 	close : function() {
 		
 		//показыаем карточки
 		anim2.add(objects.my_card_cont,{x:[objects.my_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
 		anim2.add(objects.opp_card_cont,{x:[objects.opp_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
-		
-		objects.timer_cont.visible = false;
-		
-		opponent.close();
+		anim2.add(objects.game_cont,{alpha:[1,0]}, false, 0.4,'linear');	
+
+		some_process.game = function(){};
+		this.opponent.close();
 		
 		ad.show();
 		
-		set_state({state : 'o'});	
+		set_state({state : 'o'});			
 		
-		objects.desktop.interactive = false;
-		
-		//убираем элементы стола
-		table.close();
-		
+				
 	}
 	
 }
@@ -1644,6 +1593,8 @@ touch = {
 
     down: function (e) {
 		
+		this.Q=0;
+		
 		if (my_turn === 0) return;
 		
 		objects.guide_line.visible = true;
@@ -1654,7 +1605,7 @@ touch = {
         this.touch_data.x1 = this.touch_data.x0;
         this.touch_data.y1 = this.touch_data.y0;		
 		
-		this.Q=0;
+
 		
 		/*
 		if (game.state!=="playing")
@@ -1693,7 +1644,7 @@ touch = {
 			this.touch_len = Math.max(50, Math.min(this.touch_len, 300));
 
 			this.Q = Math.atan2(dy, dx);
-			this.Q = Math.max(-0.9, Math.min(this.Q, 0.758398));
+			this.Q = Math.max(-1.57, Math.min(this.Q, 0));
 			objects[my_player].skl_anim_tween(skl_prepare,0.5+this.Q/0.785398/2);
 
 			//обновляем данные на основе корректированной длины
@@ -1725,6 +1676,8 @@ touch = {
 		
 		if (my_turn === 0) return;
 		
+		if (drag === 0) return;
+		
         objects.guide_line.visible =  false;
 		
 		//запускаем локальный снаряд и получаем его ссылку
@@ -1736,7 +1689,7 @@ touch = {
 			target : objects[opp_player],
 			spear : objects[my_player].projectile_2.texture,
 			power : 30,
-			finish_callback : game.opponent.incoming_move_finished.bind(game)
+			finish_callback : game.opponent.incoming_move_finished.bind(game.opponent)
 		});		
 		
 		obj_to_follow = projectile;
@@ -2285,7 +2238,16 @@ main_menu= {
 
 	activate: async function() {
 
-				
+
+		objects.bcg.width=800;
+		objects.bcg.height=450;
+		objects.bcg.x=400;
+		objects.bcg.y=225;
+		objects.bcg.tilePosition.y=400;
+		objects.bcg.uvRespectAnchor = true;
+		objects.bcg.anchor.set(0.5,0.5);
+		objects.bcg.alpha=0.5;
+
 
 		some_process.main_menu = this.process;
 		anim2.add(objects.mb_cont,{x:[800,objects.mb_cont.sx]}, true, 1,'easeInOutCubic');
@@ -2295,6 +2257,8 @@ main_menu= {
 	},
 	
 	process : function() {
+
+		//objects.bcg.tileScale.x+=0.001;
 
 	},
 
@@ -3707,8 +3671,8 @@ async function load_resources() {
 
 	document.getElementById("m_progress").style.display = 'flex';
 
-	//let git_src="https://akukamil.github.io/poker/"
-	git_src=""
+	let git_src="https://akukamil.github.io/duel2/"
+	//git_src=""
 
 	//подпапка с ресурсами
 	let lang_pack = ['RUS','ENG'][LANG];
