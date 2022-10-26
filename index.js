@@ -1,6 +1,6 @@
 var M_WIDTH=800, M_HEIGHT=450;
-var app, game_res, game, objects = {}, LANG = 0, state="", game_tick = 0, game_id = 0, connected = 1, client_id =0, h_state = 0, game_platform = "",
-hidden_state_start = 0,room_name = 'states', pending_player = '', opponent = {}, my_data={opp_id : ''},
+var app ={stage:{},renderer:{}}, game_res, game, objects = {}, LANG = 0, state="", game_tick = 0, game_id = 0, connected = 1, client_id =0, h_state = 0, game_platform = "",
+hidden_state_start = 0,room_name = 'states', pending_player = '', my_data={opp_id : ''},
 opp_data={}, some_process = {}, git_src = '', ME = 0, OPP = 1, WIN = 1, DRAW = 0, LOSE = -1, NOSYNC = 2, my_turn = 1, skl_prepare, skl_throw, skl_lose, drag = 0, obj_to_follow = null, my_player = null, opp_player = null, cont_inv = 1;
 
 var col_data=[['head','spine',[[-11,-19],[-1,-25],[9,-21],[12,-12],[9,-4],[0,0]]],['spine','spine',[[-1,-3],[0,29]]],['left_leg1','left_leg1',[[-14,-1],[16,-1]]],['left_leg2','left_leg2',[[-13,-3],[14,-3]]],['right_leg1','right_leg1',[[-14,-1],[16,-1]]],['right_leg2','right_leg2',[[13,2],[-13,2]]],['left_arm1','left_arm1',[[14,0],[-13,0]]],['left_arm2','left_arm2',[[-12,-1],[14,-1]]],['right_arm1','right_arm1',[[-15,0],[12,0]]],['right_arm2','right_arm2',[[-14,0],[12,0]]]];
@@ -17,6 +17,12 @@ rnd2= function(min,max) {
 	let r=Math.random() * (max - min) + min
 	return Math.round(r * 100) / 100
 };
+
+dist = function(x0,y0,x1,y1) {	
+	const dx = x0 - x1;
+	const dy = y0 - y1;
+	return Math.sqrt( dx*dx + dy*dy );	
+}
 
 class player_mini_card_class extends PIXI.Container {
 
@@ -138,6 +144,7 @@ class player_class extends PIXI.Container{
 		
 		super();
 		
+		this.follow_type = 0;
 		this.anim_on;
 		this.anim_source;
 		this.anim_pos;
@@ -146,32 +153,12 @@ class player_class extends PIXI.Container{
 		
 		this.frozen=0;
 		this.frozen_start=0;
-		
-		//это возможности
-		this.powers={'block':999,'freeze':999,'fire':999, 'none':9999};
-		this.powers_fire_time=[0,0,0];
-				
+						
 		this.power='none';
-		
-		//это параметры фейкового игрока
-		this.pref_dev_ang=0; // это диапазон добавочных углов
-		this.dev_ang_error=[]; // -0.3 До 0.3
-		this.idle_time_range=[];
-		
-		
-		//это вероятности блокировки разных копий
-		this.block_prob={'none':0, 'fire' :0 , 'freeze':0}
-		
-		//вероятности основных действий
-		this.smart_0_prob=0;
-		this.smart_1_prob=0;	
-		this.freeze_prob=0;
-		this.fire_prob=0;
-		this.s_prob=0;
+			
 				
-		//это время сколько ждать чтобы запустить огонь перед завершением фриза
-		this.wait_burn_after_freeze=0;
-		
+		this.base_skin_prefix ='';
+						
 		//это процессинговая функция
 		this.process_func=function(){};
 		this.process_start_time=0;
@@ -254,13 +241,10 @@ class player_class extends PIXI.Container{
 		this.life_level_frame);
 		
 		this.base_col=JSON.parse(JSON.stringify(col_data));		
-		this.cur_col=JSON.parse(JSON.stringify(col_data));	
-		
-		this.next_v=100;
-		this.next_del_q=0.5;
-		this.idle_time=0;
-		
-		this.life_level=100;
+		this.coll_data=JSON.parse(JSON.stringify(col_data));	
+				
+		this.life_level=1000;
+		this.life_protection=1;
 
 	};
 	
@@ -310,37 +294,45 @@ class player_class extends PIXI.Container{
 		}		
 	}
 	
+	show_life_level (show) {
+		
+		this.life_level_bcg.visible = show;
+		this.life_level_frame.visible = show;
+		this.life_level_front.visible = show;	
+		
+	}
+	
 	set_projectile_power(t) {
 		
 		t==='none'&&(this.projectile_bcg.texture=null);
 		t==='freeze'&&(this.projectile_bcg.texture=gres.projectile_freeze.texture);
 		t==='fire'&&(this.projectile_bcg.texture=gres.projectile_fire.texture);
+		t==='lightning'&&(this.projectile_bcg.texture=gres.projectile_lightning.texture);
 		this.power=t;
 	}
-	
-    shift_height(h_dist) {
-        anim.add_pos({obj: this, param: 'y',  vis_on_end: true,  func: 'easeOutBack', val: ['y', this.sy + h_dist], speed: 0.02 });
-    };
-				
-	decrease_life(val) {
+					
+	decrease_life(val) {	
 		
-		let new_lev=this.life_level-val;
-		new_lev=Math.max(0,new_lev);	
+		
+		let new_lev=this.life_level-val*this.life_protection;
+		new_lev=~~Math.max(0,new_lev);	
 		this.life_level=new_lev;
-		this.life_level_front.scale_x=this.life_level_base_scale*this.life_level*0.01;
+		this.life_level_front.scale_x=this.life_level_base_scale*this.life_level*0.001;
 		
 		if (new_lev === 0) {					
-			if (this.name === my_player)
-				game.stop('my_lose');			
+			if (this === my_player)
+				game.close('my_lose');			
 			else
-				game.stop('my_win');
+				game.close('my_win');
 		}
 	};
 	
 	make_frozen() {
+		
 					
 		this.frozen=1;
-		this.frozen_start=game_tick;	
+		this.set_skin_by_prefix('s1_');			
+		/*this.frozen_start=game_tick;	
 				
 		if (this.name==='player') {
 			touch.stop();
@@ -348,19 +340,15 @@ class player_class extends PIXI.Container{
 		} else {
 			
 			skl_anim.slots[1].on=0;
-		}
+		}*/
 		
-		this.set_skin_by_prefix('s1_');		
+	
 	}
 	
-	make_on_fire() {
+	unfroze() {
 		
-		this.on_fire=1;
-		this.on_fire_start=game_tick;
-		this.fire.play();
-		this.fire.visible=true;
-		this.fire.alpha=1;
-		gres.flame.sound.play();
+		this.frozen = 0;
+		this.set_skin_by_prefix(this.base_skin_prefix);		
 		
 	}
 		
@@ -369,106 +357,34 @@ class player_class extends PIXI.Container{
 		//обновляем коллизии		
 		for (let i=0;i<this.base_col.length;i++) {
 			
-			let limb_name=this.base_col[i][0];
-			let ref_name=this.base_col[i][1];
-			let data=this.base_col[i][2];
+			let limb_name=this.base_col[i][1];
+			let limb_data=this.base_col[i][2];
 			
-			let rot=this[ref_name].rotation;	
+			let rot=this[limb_name].rotation;	
 			
-			for (let p = 0; p < data.length; p++) {
+			for (let p = 0; p < limb_data.length; p++) {
 				
-				let x=data[p][0];
-				let y=data[p][1];
+				let x=limb_data[p][0];
+				let y=limb_data[p][1];
 
+				//поворот точки коллизии
 				let tx = x * Math.cos(rot) - y * Math.sin(rot);
 				let ty = x * Math.sin(rot) + y * Math.cos(rot);
 
+				//новое положение точки - положение фигуры + положение конечности + наклон конечности в зависимости от угла
 				if (this.scale_x===1) {
-					this.cur_col[i][2][p][0] = this.x+this[ref_name].x+tx;
-					this.cur_col[i][2][p][1] = this.y+this[ref_name].y+ty;					
+					this.coll_data[i][2][p][0] = this.x+this[limb_name].x+tx;
+					this.coll_data[i][2][p][1] = this.y+this[limb_name].y+ty;					
 				} else {
-					this.cur_col[i][2][p][0] = this.x-this[ref_name].x-tx;
-					this.cur_col[i][2][p][1] = this.y+this[ref_name].y+ty;		
+					this.coll_data[i][2][p][0] = this.x-this[limb_name].x-tx;
+					this.coll_data[i][2][p][1] = this.y+this[limb_name].y+ty;		
 				}
 			}; 		
 		}
 		
 		
 	}
-	
-	process_common(init) {
-					
-		if (init===1) {			
-			this.process_start_time=game_tick;		
-			this.process_func=this.process_common;
-			return;
-		}		
-				
-		this.update_collision();
 
-		//обрабатываем данный код только если идет игра
-		if (state!=="playing") return;		
-		
-		//обрабатываем события замороженного игрока
-		if (this.frozen===1) {				
-			if (game_tick-this.frozen_start>5){
-				this.frozen=0;
-				
-				//устанавливаем вид игрока
-				skl_anim.goto_frame(this,skl_throw,0);
-				
-				//восстанавливаем скин
-				this.set_skin_by_id();
-			}
-			return;
-		};
-		
-		//обрабатываем события подожженного игрока
-		if (this.on_fire===1) {
-
-			this.decrease_life(0.1);
-			if (game_tick-this.on_fire_start>5){
-				this.on_fire=0;				
-					anim.add_pos({obj:this.fire,param:'alpha',vis_on_end:false,func:'easeOutBack',val:[1,0],	speed:0.02});
-			}
-		};
-		
-		//обрабатываем время блока
-		if (this.block.visible===true && this.block.ready===true) {
-			if (game_tick>this.block_start+2) {
-				anim.add_pos({obj: this.block,	param: 'alpha',	vis_on_end: false,	func: 'linear',	val: [1, 0],	speed: 0.1	});
-			}	
-			
-			this.block.rotation+=0.1;
-		}
-				
-	};
-	
-	process_idle(init) {
-		
-		
-		if (init===1) {			
-			this.process_start_time=game_tick;		
-			this.process_func=this.process_idle;
-			this.idle_time=rnd2(this.idle_time_range[0],this.idle_time_range[1]);
-			return;
-		}
-		
-		//общие функции
-		this.process_common();
-		
-		if (this.frozen===1) return;		
-		
-		//сканируем копья чтобы активировать блок
-		this.scan_projectiles();
-		
-		if (game_tick>this.process_start_time+this.idle_time)
-			this.process_buildup(1);
-
-		
-	
-	};
-	
 	set_skin_by_id(id) {
 		
 		let skin_prefix=""
@@ -507,7 +423,11 @@ class player_class extends PIXI.Container{
 	
 	init(skin_prefix) {
 		
+		this.frozen = 0;
+		
 		this.visible=true;
+		
+		this.base_skin_prefix=skin_prefix;
 		
 		//устанавливаем текстуры
 		this.set_skin_by_prefix(skin_prefix);						
@@ -516,7 +436,7 @@ class player_class extends PIXI.Container{
 		this.skl_anim_goto_frame(skl_throw,0);
 				
 		//устанавливаем начальные значения сил
-		this.set_life(100);
+		this.set_life(1000);
 		//this.powers.block=skins_powers[this.skin_id][1];
 		//this.powers.freeze=skins_powers[this.skin_id][2];
 		//this.powers.fire=skins_powers[this.skin_id][3];
@@ -525,7 +445,7 @@ class player_class extends PIXI.Container{
 	
 	set_life(val) {		
 		this.life_level=val;
-		this.life_level_front.scale_x=this.life_level_base_scale*this.life_level*0.01;
+		this.life_level_front.scale_x=this.life_level_base_scale*this.life_level*0.001;
 	}
 
 }
@@ -534,14 +454,15 @@ class projectile_class extends PIXI.Container {
 
 	constructor() {
 		super();
-				
+		
+		this.follow_type = 1;
 		this.x0 = 0;
 		this.y0 = 0;
 		this.on = 0;
 		this.vx0 = 0;
 		this.vy0 = 0;
-		this.coll_obj=0;
-		this.coll_obj_id=0;
+		this.coll_line_pnt0=0;
+		this.coll_line_pnt1=0;
 		
 		this.sx=0;
 		this.sy=0;			
@@ -552,9 +473,8 @@ class projectile_class extends PIXI.Container {
 		this.P=0;
 		this.t=0;
 		this.disp=0;
-		this.target = "";
+		this.target = {};
 		this.visible=false;
-
 		
 		this.process=function(){};
 		
@@ -562,7 +482,7 @@ class projectile_class extends PIXI.Container {
 		this.p_sprite=new PIXI.Sprite();this.p_sprite.anchor.set(0.5,0.5);
 		this.power='none';
 		
-		this.finish_callback = function(){};
+		this.hit_callback = function(){};
 		
 		this.addChild(this.p_bcg, this.p_sprite);
 		
@@ -572,11 +492,19 @@ class projectile_class extends PIXI.Container {
 	
 	activate(params) {
 		
-		this.p_bcg.texture=gres.zz_projectile.texture;
-		//params.power==='freeze'&&(this.p_bcg.texture=gres.projectile_freeze.texture);
-		//params.power==='fire'&&(this.p_bcg.texture=gres.projectile_fire.texture);
+		if (params.power === 'fire')
+			this.p_bcg.texture=gres.projectile_fire.texture;	
+		if (params.power === 'freeze')
+			this.p_bcg.texture=gres.projectile_freeze.texture;		
+		if (params.power === 'lightning')
+			this.p_bcg.texture=gres.projectile_lightning.texture;		
+		if (params.power === 'none')
+			this.p_bcg.texture=gres.zz_projectile.texture;
 					
-		this.finish_callback = params.finish_callback;
+		
+
+					
+		this.hit_callback = params.hit_callback;
 		
 		this.power=params.power;
 		
@@ -588,12 +516,10 @@ class projectile_class extends PIXI.Container {
 		this.target = params.target;
 		
 		if (objects.game_cont.scale_x < 0) {			
-			anim2.add(objects.game_cont,{scale_x:[-1,-0.5],scale_y:[1,0.5]}, true, 7,'ease2back');
+			anim2.add(objects.game_cont,{scale_x:[-1,-0.75],scale_y:[1,0.75]}, true, 7,'ease2back');
 		} else {
-			anim2.add(objects.game_cont,{scale_xy:[1,0.5]}, true, 7,'ease2back');	
+			anim2.add(objects.game_cont,{scale_xy:[1,0.75]}, true, 7,'ease2back');	
 		}
-
-		
 
 		if (this.target.name === "player1") {
 			
@@ -609,14 +535,15 @@ class projectile_class extends PIXI.Container {
 			let dyv=-Math.cos(objects.player1.spine.rotation);			
 			this.x0 = objects.player1.x+20;
 			this.y0 = objects.player1.y+50;
-			this
-			.scale.x=-1;
+			this.scale.x=-1;
 		}
+		
 		this.x = this.x0;
 		this.y = this.y0;
 		
 		this.width=90;
 		this.height=20;
+		this.alpha = 1;
 		
 		this.P=params.P;
 		this.t=0;
@@ -650,11 +577,10 @@ class projectile_class extends PIXI.Container {
 
 	};
 	
-	stop(int_x,int_y, coll_obj, coll_obj_id) {				
+	stop_on_body(int_x, int_y, pnt0, pnt1) {				
 
-		this.on = 0;
-		this.finish_callback();
-		this.process = this.process_stop;	
+		this.on = 0;		
+		this.process = this.process_stop_on_body;	
 		
 		this.int_x=int_x;
 		this.int_y=int_y;
@@ -662,31 +588,27 @@ class projectile_class extends PIXI.Container {
 		this.sx=this.x;
 		this.sy=this.y;				
 		
-		this.coll_obj=coll_obj;
-		this.coll_obj_id=coll_obj_id;
+		this.coll_line_pnt0=pnt0;
+		this.coll_line_pnt1=pnt1;
 		
 		//вычисляем расстояние от начала линии коллизии до точки пересечения
-		let dx=int_x-this.coll_obj[this.coll_obj_id][0];
-		let dy=int_y-this.coll_obj[this.coll_obj_id][1];
-		this.disp=Math.sqrt(dx*dx+dy*dy);
+		let dx=int_x-this.coll_line_pnt0[0];
+		let dy=int_y-this.coll_line_pnt0[1];
+		this.disp=Math.sqrt(dx*dx+dy*dy);	
 			
 	};
 	
-	async stop_on_block() {
+	stop_on_block() {
 		
 		this.on = 0;
 		this.process = function(){};		
-		await new Promise((resolve, reject) => {setTimeout(resolve, 2000);});
-		this.finish_callback();		
 	}
 	
 	process_go() {
 		
-		if (this.visible === false)
-			return;
-		
-		
-		//console.log(objects.game_cont.scale_x,objects.game_cont.scale_y,objects.game_cont.scale_xy);
+		if (this.visible === false)	return;		
+
+		//обновляем позицию копья
 		let vx=this.vx0;
 		let vy=9.8*this.t+this.vy0;
 
@@ -696,58 +618,41 @@ class projectile_class extends PIXI.Container {
 		this.rotation=Math.atan(vy/vx);	
 		this.t+=0.1;
 		
-		this.process_collisions();
-
-
-		if (this.x>4800 || this.x<-500 || this.y>600 || this.y<-1000) {
-			this.on = 0;	
-			this.finish_callback();
-			this.visible = false;
-		}
-		
-	};
-	
-	process_stop () {			
-
-		//это передвижение синхронно с конечностью в которое попала
-		let dx=this.coll_obj[this.coll_obj_id+1][0]-this.coll_obj[this.coll_obj_id][0];
-		let dy=this.coll_obj[this.coll_obj_id+1][1]-this.coll_obj[this.coll_obj_id][1];
-		let d=Math.sqrt(dx*dx+dy*dy);
-		dx=dx/d;
-		dy=dy/d;
-		
-		this.x = this.sx+(this.coll_obj[this.coll_obj_id][0]+dx*this.disp-this.int_x);
-		this.y = this.sy+(this.coll_obj[this.coll_obj_id][1]+dy*this.disp-this.int_y);
-		
-	}
-	
-	process_collisions() {
-		
+		//проверяем столкновение с объектами				
 		if(this.on===1) {
 			
 			let l = this.get_line();	
 		
 			//проверяем столкновение с  частями тела игрока или оппонента
-			for (let i=0;i<this.target.cur_col.length;i++) {
+			for (let i=0;i<this.target.coll_data.length;i++) {
 				
-				let limb_name=this.target.cur_col[i][0];
-				let ref_shape=this.target.cur_col[i][1];
-				let data=this.target.cur_col[i][2];
+				let limb_name=this.target.coll_data[i][0];
+				let coll_data=this.target.coll_data[i][2];
 				
-				for (let p = 0; p < data.length - 1; p++) {									
+				for (let p = 0; p < coll_data.length - 1; p++) {									
 											
-					let res = this.get_line_intersection(l[0], l[1], l[2], l[3], data[p][0], data[p][1], data[p + 1][0], data[p + 1][1]);
-					if (res[0] !== -999 && this.on===1) {
-													
-						console.log('Collision: ' + limb_name)
+					let res = this.get_line_intersection(l[0], l[1], l[2], l[3], coll_data[p][0], coll_data[p][1], coll_data[p + 1][0], coll_data[p + 1][1]);
+					if (res[0] !== -999 && this.on===1) {													
 						
-						if (limb_name === 'head')
-							this.target.decrease_life(50)
-						else
-							this.target.decrease_life(40)
+						//сообщаем в коллбэк информацию об ударе
+						this.hit_callback({hit_type : 'body', limb : limb_name, coll_data:[res[0], res[1], coll_data[p], coll_data[p+1]], power : this.power});
+						
+						//корректируем копье чтобы оно не заходило далеко
+						let proj_half_len = dist(l[0], l[1], l[2], l[3]);
+						let dist_to_int = dist(l[0], l[1],res[0], res[1]);
+						let dx = l[2]-l[0];
+						let dy = l[3]-l[1];
+						dx /= proj_half_len;
+						dy /= proj_half_len;						
+						this.x = this.x - (proj_half_len - dist_to_int) * dx;
+						this.y = this.y - (proj_half_len - dist_to_int) * dy;
+						
+						
+						
 						
 						//останавливаем копье
-						this.stop(res[0], res[1], this.target.cur_col[i][2], p);
+						this.stop_on_body(res[0], res[1], coll_data[p], coll_data[p+1]);
+						return;
 					}						
 				}					
 			}	
@@ -757,28 +662,78 @@ class projectile_class extends PIXI.Container {
 				
 				const obj = map_col_data[i];
 				
-				for (let j = 0 ; j <obj.length -1 ; j++) {
-					
+				for (let j = 0 ; j <obj.length -1 ; j++) {					
 					
 					let p0 = obj[j];
 					let p1 = obj[j+1];
 					
 					let res = this.get_line_intersection(l[0], l[1], l[2], l[3], p0[0], p0[1], p1[0], p1[1]);
 					if (res[0] !== -999 && this.on===1) {
-													
-						console.log('Collision: ' + 'block')
+						
+						//сообщаем в коллбэк информацию об ударе
+						this.hit_callback({hit_type : 'wall', power : this.power});
+						
+						//корректируем копье чтобы оно не заходило далеко
+						let proj_half_len = dist(l[0], l[1], l[2], l[3]);
+						let dist_to_int = dist(l[0], l[1],res[0], res[1]);
+						let dx = l[2]-l[0];
+						let dy = l[3]-l[1];
+						dx /= proj_half_len;
+						dy /= proj_half_len;						
+						this.x = this.x - (proj_half_len - dist_to_int) * dx;
+						this.y = this.y - (proj_half_len - dist_to_int) * dy;
+						
+						
 						//останавливаем копье
 						this.stop_on_block();
+						
+						return;
 					}										
 					
 				}
 				
 			}
 			
-			
 		}	
-	}
+
+
+		//проверяем вылет за пределы допустимого
+		const min_x = Math.min(my_player.x,opp_player.x)-200;
+		const max_x = Math.max(my_player.x,opp_player.x)+200;
+		
+		if (this.x < min_x || this.x  > max_x || this.y>800 || this.y<-1000) {
+						
+			//сообщаем в коллбэк информацию об ударе
+			this.hit_callback({hit_type : 'out', power : this.power});
+			
+			//выключаем копье
+			this.on = 0;	
+			this.process = function(){};	
+			anim2.add(this,{alpha:[1,0]}, false, 0.25,'linear');
+
+		}
+		
+	};
 	
+	process_stop_on_body () {			
+
+		//вычиляем новое направление линии конечности
+		let dx=this.coll_line_pnt1[0]-this.coll_line_pnt0[0];
+		let dy=this.coll_line_pnt1[1]-this.coll_line_pnt0[1];
+		const d=Math.sqrt(dx*dx+dy*dy);
+		dx=dx/d;
+		dy=dy/d;	
+		
+		//вычисляем какое сейчас положение у точки ранения
+		const new_pos_int_x = this.coll_line_pnt0[0] + dx*this.disp;
+		const new_pos_int_y = this.coll_line_pnt0[1] + dy*this.disp;
+			
+		//на сколько изменилась точка ранения на столько изменяем и положение копья
+		this.x = this.sx+(new_pos_int_x - this.int_x);
+		this.y = this.sy+(new_pos_int_y - this.int_y);
+		
+	}
+
 	get_line_intersection(p0_x, p0_y, p1_x, p1_y, p2_x, p2_y, p3_x, p3_y) {
 		let i_x,
 		i_y;
@@ -800,6 +755,97 @@ class projectile_class extends PIXI.Container {
 			return [p0_x + (t * s1_x), p0_y + (t * s1_y)];
 		return [-999, -999];
 	}
+	
+}
+
+blood = {
+	
+	last_splash_time : 0,
+	blood_start_time : 0,
+	coll_line_pnt0 : [],
+	coll_line_pnt1 : [],
+	dir : 0,
+	
+	attach : function(coll_data, player) {
+							
+							
+		this.dir = player.scale_x;
+		
+		//запоминаем точки конечности
+		this.coll_line_pnt0=coll_data[2];
+		this.coll_line_pnt1=coll_data[3];
+		
+		//вычисляем расстояние от начала линии коллизии до точки пересечения
+		let dx=coll_data[0]-this.coll_line_pnt0[0];
+		let dy=coll_data[1]-this.coll_line_pnt0[1];
+		this.disp=Math.sqrt(dx*dx+dy*dy);	
+		
+		this.blood_start_time = game_tick;
+		
+	},
+	
+	add_splash : function() {		
+	
+		for(let s of objects.blood) {
+			if (s.visible === false) {
+	
+				//вычиляем новое направление линии конечности
+				let dx=this.coll_line_pnt1[0]-this.coll_line_pnt0[0];
+				let dy=this.coll_line_pnt1[1]-this.coll_line_pnt0[1];
+				const d=Math.sqrt(dx*dx+dy*dy);
+				dx=dx/d;
+				dy=dy/d;	
+				
+				//вычисляем какое сейчас положение у точки ранения
+				const int_x = this.coll_line_pnt0[0] + dx*this.disp;
+				const int_y = this.coll_line_pnt0[1] + dy*this.disp;
+								
+				//включаем частицу крови
+				s.visible = true;
+				s.start_x=s.x=int_x;
+				s.start_y=s.y=int_y;	
+				s.scale_xy = 0.1;
+				s.alpha=1;
+				s.travel_time = 0;
+				s.travel_speed = rnd2(2,4) * this.dir;
+				s.start_time = game_tick;
+
+				return;				
+			}		
+		}		
+	},
+	
+	process : function () {
+		
+		//добавляем новые капли крови
+		if (game_tick < this.blood_start_time + 1.5) {
+			if (game_tick > this.last_splash_time + 0.05) {
+					
+				this.add_splash();				
+				this.last_splash_time = game_tick;
+			}		
+		}
+		
+		
+		
+		//обрабатываем текущие капли крови
+		for(let s of objects.blood) {			
+			if (s.visible === true) {
+				s.x+=s.travel_speed;				
+				let x_traveled = Math.abs(s.x - s.start_x);
+				const travel_time_sqr = s.travel_time*s.travel_time;
+				s.y = s.start_y + travel_time_sqr*0.075;				
+				
+				s.scale_xy += 0.015;
+				s.alpha=1 - travel_time_sqr*0.0005;
+				s.travel_time++;				
+				
+				if (game_tick > s.start_time + 2)
+					s.visible = false;
+			}
+		}
+	}	
+	
 	
 }
 
@@ -872,10 +918,15 @@ anim2 = {
 	
 	kill_anim: function(obj) {
 		
-		for (var i=0;i<this.slot.length;i++)
-			if (this.slot[i]!==null)
-				if (this.slot[i].obj===obj)
-					this.slot[i]=null;		
+		for (var i=0;i<this.slot.length;i++) {
+			if (this.slot[i]!==null) {
+				if (this.slot[i].obj===obj) {
+					obj.ready = true;
+					this.slot[i]=null;			
+				}
+			}
+		}
+	
 	},
 	
 	easeOutBack: function(x) {
@@ -1003,9 +1054,6 @@ anim2 = {
 			});			
 			
 		}
-
-		
-		
 
 	},	
 	
@@ -1165,47 +1213,85 @@ mp_game = {
 	opp_conf_play : 0,
 	made_moves: 0,
 	my_role : '',
+	timer_id : 0,
+	time_left : 0,
 			
 	activate : async function () {
 		
-		opponent = this;
+		game.opponent = this;
 					
 		//фиксируем врему начала игры для статистики
 		this.start_time = Date.now();
-		
-		objects.desktop.texture = gres.desktop.texture;
-		anim2.add(objects.desktop,{alpha:[0,1]}, true, 0.6,'linear');		
-		
+				
 		//устанавливаем локальный и удаленный статус
-		set_state({state : 'p'});
+		set_state({state : 'p'});	
+		
+		
+		//таймер
+		objects.timer_cont.visible = true;
+		this.switch_timer();
+		
+		
 				
-	},
-		
-	send_message : async function() {
-				
-		let msg_data = await feedback.show();
-		
-		if (msg_data[0] === 'sent') {			
-			firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"CHAT",tm:Date.now(),data:msg_data[1]});	
-
-		} else {			
-			message.add('Сообщение не отправлено');
-		}
-		
 	},
 	
-	send_move(Q,P) {
+	switch_timer : function() {
+		return
+		this.time_left = 20
+		objects.timer_text.text = this.time_left;
+		if (my_turn === 1)
+			objects.timer_cont.x = 50;
+		else
+			objects.timer_cont.x = 750;
+		this.timer_id = setTimeout(this.timer_tick.bind(this),1000);
+	},
+	
+	pause_timer : function() {
 		
-		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"MOVE",tm:Date.now(),data:[Q,P]});	
+		clearTimeout(this.timer_id)
+		
+	},
+		
+	timer_tick : function() {
+		
+		this.time_left--;
+		objects.timer_text.text = this.time_left;
+		
+		if (my_turn === 1 && this.time_left === 0)
+			game.close('my_no_time')
+		
+		if (my_turn === 0 && this.time_left === -3)
+			game.close('opp_no_time')
+		
+		this.timer_id = setTimeout(this.timer_tick.bind(this),1000);
+				
+	},
+	
+	send_move(move_data) {
+		
+		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"MOVE",tm:Date.now(),move_data:move_data});	
 		
 	},	
-		
-	incoming_move_finished : function() {
-		
-		console.log('Прилетело копье к оппоненту ',objects.game_cont.scale_x);
-		obj_to_follow = opp_player;
 	
-	},		
+	incoming_move : function(move_data) {
+		
+		//дополняем информацией
+		opp_player.set_projectile_power(move_data.power);	
+		move_data.spear = opp_player.projectile_2.texture;
+		move_data.source = opp_player;
+		move_data.target = my_player;
+		move_data.hit_callback = game.incoming_move_finished.bind(game);
+		
+		//отправляем в основной обработчик
+		game.incoming_move(move_data);
+		
+	},
+		
+	make_move : function() {
+		
+
+	
+	},	
 
 	giveup : async function() {
 		
@@ -1234,7 +1320,8 @@ mp_game = {
 	
 	close : function() {
 		
-
+		clearTimeout(this.timer_id)
+		objects.timer_cont.visible = false;
 	}
 	
 }
@@ -1247,7 +1334,7 @@ sp_game = {
 	center_size : 0,
 	true_rating : null,
 	receive_move_time : 0,
-
+		
 	activate: async function(role, seed) {
 		
 		//сохраняем рейтинг
@@ -1257,14 +1344,11 @@ sp_game = {
 		//рейтинг не настоящий поэтому его затемняем
 		objects.my_card_rating.alpha = 0.5;
 
-		opponent = this;
+		game.opponent = this;
 		
 		opp_data.uid = 'BOT';
 		opp_data.rating = 100;		
-		
-		objects.desktop.texture = gres.desktop.texture;
-		anim2.add(objects.desktop,{alpha:[0,1]}, true, 0.6,'linear');				
-		
+			
 		//устанавливаем локальный и удаленный статус
 		set_state ({state : 'b'});	
 			
@@ -1272,7 +1356,11 @@ sp_game = {
 		
 		
 
-	},
+	},	
+	
+	switch_timer : function() {},
+	
+	pause_timer : function(){},
 	
 	process : function() {
 					
@@ -1280,38 +1368,98 @@ sp_game = {
 		
 	},	
 	
-	send_move(Q,P) {
+	send_move(move_data) {
 		
 		
 		
 	},
 		
-	incoming_move_finished : async function() {
+	calc_next_fire2 : function(v0) {
+
+		//****вычисляет необходимой угол копья в зависимости от силы отправки
 		
-		obj_to_follow = opp_player;
-		console.log('incoming_move_finished');
+		let x0 = opp_player.x-20;
+		let y0 = opp_player.y+50;
+
+		let x1 = my_player.x+60;
+		let y1 = my_player.y+70;
 		
-		await new Promise((resolve, reject) => {setTimeout(resolve, 2000);});
+		let dx=x0-x1;
+		let dh=y1-y0;
 		
+		//решение уравнения взято отсюда https://www.youtube.com/watch?v=32PiZDW40VI
+		let R=dx/v0; R=R*R*4.9;
+		let a=R;
+		let b=dx;
+		let c=R-dh;
+		let D=b * b - (4 * a * c);
+		
+		let Q1=0, Q2=0;
+		
+		if (D>0){			
+			let root = Math.sqrt(D);			
+			let tanQ1 = (-b - root) / (2 * a);	
+			let tanQ2 = (-b + root) / (2 * a);	
+			Q1=Math.atan(tanQ1);
+			Q2=Math.atan(tanQ2);
+		} 
+		
+		if (D===0) {
+			let root = Math.sqrt(D);			
+			let tanQ1 = (-b - root) / (2 * a);	
+			Q1=Math.atan(tanQ1);
+		}
+
+		if (D<0) {
+			Q1=-Math.random()
+		}
+		
+		console.log(v0,Q1,Q2)
+		return Q1;		
+	},
+		
+	calc_v0_for_Q : function(del_q) {
+
+		let x0 = opp_player.x-20;
+		let y0 = opp_player.y+50;
+
+		let x1 = my_player.x+60;
+		let y1 = my_player.y+70;
+		
+		let dx=x0-x1;
+		let dh=y1-y0;
+		
+		//вычисляем угол между точкой запуском и целью
+		let Q1= Math.atan2(dh, dx);		
+
+		//добавляем еще угол чтобы запуск происходил по дуге
+		let Q=Q1-del_q;
+		
+		let v1=(x0-x1)/Math.cos(Q);
+		let v2=0.5*9.8/(dh-Math.tan(Q)*dx)
+		let v0=v1*Math.sqrt(v2);
+				
+		return [Q, v0];	
+		
+	},
+		
+	make_move : async function() {
+								
 		if (this.on === 0) return;
 		
-		//запускаем анимацию
-		objects[opp_player].play_anim(skl_throw);			
-		
+				
 		//запускаем снаряд бота
-		let projectile = game.add_projectile({	Q : -0.8,
-							P : rnd2(60,160),
-							spear : objects[opp_player].projectile_2.texture,
-							target : objects[my_player],
-							power : 30,
-							finish_callback : game.incoming_move_finished.bind(game)							
-							});
-				
-		obj_to_follow = projectile;
-		objects[opp_player].projectile.visible = false;
-		objects[opp_player].zz_projectile.visible = false;
-				
-		setTimeout(function(){objects[opp_player].projectile.visible=true;objects[opp_player].zz_projectile.visible=true},1700);	
+		[Q,P] = this.calc_v0_for_Q(rnd2(0.4,0.8));
+		const move_data = {	Q : Q,
+							P : P,
+							spear : opp_player.projectile_2.texture,
+							source : opp_player,
+							target : my_player,
+							power : 'none',
+							hit_callback : game.incoming_move_finished.bind(game)							
+							};
+		console.log(Q,P)
+		game.start_move (move_data);		
 		
 	},
 
@@ -1319,21 +1467,8 @@ sp_game = {
 		
 		
 	},
-			
-	stop : function() {
-		
-		this.on = 0;
-		
-	},
-			
-	close : async function() {
-		
-		//восстанавливаем рейтинг
-		if (this.true_rating !== null)
-			my_data.rating = this.true_rating;			
-		objects.my_card_rating.text = my_data.rating;
-		objects.my_card_rating.alpha = 1;
-		this.true_rating = null;
+					
+	close : async function() {		
 		
 		this.on = 0;	
 		
@@ -1341,28 +1476,189 @@ sp_game = {
 	
 	switch_close : function() {
 		
+		awaiter.kill_all();
+		objects.fire.visible = false;
 		this.close();	
 		
 	}
 
 }
 
+awaiter = {
+	
+	slots : [null, null, null],
+	
+	add : function(time) {
+		
+		for (var i=0;i<3;i++) {
+			if (this.slots[i] === null) {
+				this.slots[i] = {resolve : 0 , time : time, start_time : game_tick};		
+				break;
+			}			
+		}		
+		
+		return new Promise(resolve => {			
+			this.slots[i].resolve = resolve;			
+		})
+	},
+	
+	kill_all : function() {
+		
+		for (let i=0;i<3;i++) {		
+			if (this.slots[i] !== null) {
+				this.slots[i].resolve(false);					
+				this.slots[i]=null;
+			}			
+		}		
+	},
+	
+	
+	process : function() {
+		
+		for (let i=0;i<3;i++) {		
+			if (this.slots[i] !== null) {
+				if (game_tick - this.slots[i].start_time > this.slots[i].time) {
+					this.slots[i].resolve(true);					
+					this.slots[i]=null;
+				}				
+			}			
+		}	
+	}
+	
+}
+
+func_scheduler = {
+	
+	slots : [null,null,null,null,null],
+	
+	add : function(func , time) {	
+
+		
+		for (let i=0;i<5;i++) {
+			if (this.slots[i] === null) {
+				this.slots[i] = {func : func , time : time, start_time : game_tick}
+				return;
+			}			
+		}		
+	},
+	
+	process : function() {		
+		for (let i=0;i<5;i++) {		
+			if (this.slots[i] !== null) {
+				if (game_tick - this.slots[i].start_time > this.slots[i].time) {
+					this.slots[i].func();					
+					this.slots[i]=null;
+				}				
+			}			
+		}		
+	}	
+	
+}
+
+power_buttons = {
+		
+	selected_power: 'none',
+	rem_time:{freeze:0, fire:0,block:0, },
+		
+	down : function(bonus) {
+		
+		
+		if (my_data.bonuses[bonus] === 0) return;
+		
+		if (this.selected_power===bonus) {
+			this.selected_power='none';				
+			my_player.set_projectile_power('none');		
+			objects.upg_button_frame.visible=false;
+		} else {
+			this.selected_power=bonus;				
+			my_player.set_projectile_power(bonus);	
+			const button_ref = objects[bonus + '_button'];
+			objects.upg_button_frame.x=button_ref.x;
+			objects.upg_button_frame.y=button_ref.y;
+			objects.upg_button_frame.visible=true;
+		}
+		
+		
+	},
+	
+	process: function() {
+		
+
+	},
+	
+	bonus_fired : function(bonus) {
+		
+		my_data.bonuses[bonus]--;			
+		this.update_info();
+		
+		//если больше не осталось бонус копий
+		if (my_data.bonuses[bonus] === 0) {			
+			this.selected_power='none';			
+			objects.upg_button_frame.visible=false;	
+			my_player.set_projectile_power('none');				
+		}
+
+		
+		
+	},	
+
+	update_info : function() {
+		
+		objects.freeze_text.text=my_data.bonuses.freeze;
+		objects.fire_text.text=my_data.bonuses.fire;
+		objects.lightning_text.text=my_data.bonuses.lightning;
+		
+	},
+	
+	init: function () {
+		
+		
+		anim2.add(objects.power_buttons_cont,{y:[450,objects.power_buttons_cont.sy]}, true, 1,'linear');	
+		
+		this.update_info();
+	},
+	
+	close : function() {
+		anim2.kill_anim(objects.power_buttons_cont);
+		anim2.add(objects.power_buttons_cont,{y:[objects.power_buttons_cont.y,450]}, false, 1,'linear');	
+		
+	}
+	
+}
+
 game = {	
 
 	start_player : 0,
 	start_time : 0,
-	tar_pivot_x:0,
-	tar_pivot_y:0,
+	parallax_data : {},
+	on : 0,
 	opponent : {},
 	map_data : {},
 	
-	activate : async function(start_player, opponent){
+	add_fire : function(player) {
 		
+		if (player.scale_x <0)
+			objects.fire.x = player.x - 145;
+		else
+			objects.fire.x = player.x+ 30;
+		
+		objects.fire.y = player.y+55;
+		objects.fire.alpha = 1;
+		objects.fire.visible = true;
+		objects.fire.play();
+		objects.fire.player = player;
+		objects.started_time = game_tick;
+		
+	},
+	
+	activate : async function(start_player, opponent, map_id){
+				
 		
 		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
+		//map_id = 3;
 		var map_loader = new PIXI.Loader();	
-		map_loader.add("map_load_list", "map0/map_load_list.txt",{timeout: 5000});
-		map_loader.add("map_col_data", "map0/collisions.txt",{timeout: 5000});
+		map_loader.add("map_load_list", "map"+map_id+"/map_load_list.txt",{timeout: 5000});
+		map_loader.add("map_col_data", "map"+map_id+"/collisions.txt",{timeout: 5000});
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
 		this.map_data = eval(map_loader.resources.map_load_list.data);
@@ -1371,7 +1667,7 @@ game = {
 		//добавляем из листа загрузки карты
 		for (var i = 0; i < this.map_data.length; i++)
 			if (this.map_data[i].class === "sprite" || this.map_data[i].class === "image" )
-				map_loader.add(this.map_data[i].name, git_src+'map0/' + this.map_data[i].name + "." +  this.map_data[i].image_format);
+				map_loader.add(this.map_data[i].name, git_src+'map'+map_id+'/' + this.map_data[i].name + "." +  this.map_data[i].image_format);
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
 		
@@ -1394,10 +1690,18 @@ game = {
 			}
 		}
 		
-		//устанаваем фон
-		objects.bcg.texture = map_loader.resources.bcg.texture;
-			
+		//устанаваем фон 
+		objects.desktop.visible = true;
+		objects.desktop.texture = map_loader.resources.bcg.texture;
+		anim2.add(objects.desktop,{alpha:[0,1]}, true, 0.4,'linear');
+		anim2.add(objects.game_cont,{alpha:[0,1]}, true, 0.4,'linear');
+
+		objects.parallax.visible = true;
+		objects.parallax.texture = map_loader.resources.parallax.texture;
+		objects.parallax.scale_xy = 0.85;
+
 		
+		this.on = 1;
 		this.opponent = opponent;
 		
 		if (start_player === ME)
@@ -1414,8 +1718,11 @@ game = {
 		//выключаем бота соперника если он работает
 		sp_game.switch_close();
 		
+		
+		anim2.add(objects.sbg_button,{x:[850,objects.sbg_button.sx]}, true, 0.6,'easeOutBack');	
+		
 		//активируем все что связано с онлайн или ботом
-		await opponent.activate();
+		await this.opponent.activate();
 		
 		//убираем все стрелы
 		objects.projectiles.forEach(p => {
@@ -1423,7 +1730,8 @@ game = {
 			p.visible = false;
 		})
 		
-		//восстанавливаем жизни игроков
+		//бонус кнопки
+		power_buttons.init();
 		
 		//показыаем карточки
 		anim2.add(objects.my_card_cont,{x:[-100,objects.my_card_cont.sx]}, true, 0.6,'easeOutBack');	
@@ -1432,11 +1740,12 @@ game = {
 		//устанавливаем кто начальный игрок 
 		this.start_player = start_player;	
 		
-		objects.game_cont.visible = true;
-
+	
 		//инициируем игроков
-		objects.player1.init('s0_');
+		objects.player1.init('ca_');
+		objects.player1.show_life_level(true);
 		objects.player2.init('s0_');
+		objects.player2.show_life_level(true);
 		
 		
 		//персчитываем коллизии
@@ -1444,93 +1753,533 @@ game = {
 		objects.player2.update_collision();
 		
 		some_process.game = this.process.bind(this);
+
+
 		objects.desktop.interactive = true;
-		my_player = ['player1','player2'][start_player];
-		opp_player = ['player1','player2'][1 - start_player];
+		my_player = [objects.player1, objects.player2][start_player];
+		opp_player = [objects.player1, objects.player2][1 - start_player];
 		
 		if (start_player === ME)
 			obj_to_follow = my_player;
 		else
 			obj_to_follow = opp_player;
-		
+				
 		if (start_player === OPP)
 			objects.game_cont.scale_x = -1;
 		
-		
-		
+		//нарисуем коллизии для отладки
+		/*objects.collision_drawer.visible = true;
+		objects.collision_drawer.lineStyle(6, 0xFEEB77, 1);
+		objects.collision_drawer.moveTo(map_col_data[0][0],map_col_data[0][1]);	
+		for (let obj of map_col_data) {
+			for (let p = 1 ; p < obj.length; p++)			
+				objects.collision_drawer.lineTo(obj[p][0],obj[p][1]);			
+			
+		}*/
+
 	},
 	
 	process : function() {
 		
+		let tar_pivot_x;
+		let tar_pivot_y;
 		
-		if (obj_to_follow === 'player1') {
-			this.tar_pivot_x = objects.player1.x + objects.player1.projectile.x;
-			this.tar_pivot_y = objects.player1.y + objects.player1.projectile.y;		
+		if (obj_to_follow.follow_type === 0) {
+			tar_pivot_x = obj_to_follow.x + obj_to_follow.projectile.x*obj_to_follow.scale_x;
+			tar_pivot_y = obj_to_follow.y + obj_to_follow.projectile.y;		
+		} 
+		
+		if (obj_to_follow.follow_type === 1) {			
+			tar_pivot_x = obj_to_follow.x ;
+			tar_pivot_y = obj_to_follow.y;			
 		}
 		
-		if (obj_to_follow === 'player2') {
-			this.tar_pivot_x = objects.player2.x - objects.player2.projectile.x;
-			this.tar_pivot_y = objects.player2.y + objects.player2.projectile.y;		
-		}
+		const dx = tar_pivot_x - objects.game_cont.pivot.x;
+		const dy = tar_pivot_y - objects.game_cont.pivot.y;
+		const d = Math.sqrt(dx*dx+dy*dy);
 		
-		if (obj_to_follow!== null && typeof(obj_to_follow) === 'object') {
+		if (d>10) {			
+		
+			objects.game_cont.pivot.x += dx/10;
+			objects.game_cont.pivot.y += dy/10;
 			
-			this.tar_pivot_x = obj_to_follow.x ;
-			this.tar_pivot_y = obj_to_follow.y;			
-		}
-		
-		let dx = this.tar_pivot_x - objects.game_cont.pivot.x;
-		let dy = this.tar_pivot_y - objects.game_cont.pivot.y;
-		let d = Math.sqrt(dx*dx+dy*dy);
-		
-		if (d>10) {
-			
-		objects.game_cont.pivot.x += dx/10;
-		objects.game_cont.pivot.y += dy/10;
-		objects.bcg.tilePosition.x-=dx/100;
-		objects.bcg.tilePosition.y-=dy/100;
+
+			const bcg_dx2 = objects.game_cont.pivot.x - this.parallax_data.scene_cen_x;
+			const bcg_dy2 = objects.game_cont.pivot.y - this.parallax_data.scene_cen_y;
+
+			objects.parallax.x = this.parallax_data.cen_x - bcg_dx2 / 20;
+			objects.parallax.y = this.parallax_data.cen_y - bcg_dy2 / 20;	
 		}
 				
+				
+		//обрабатываем горение
+		if (objects.fire.visible === true && objects.fire.ready === true) {
+			
+			objects.fire.player.decrease_life(1);
+			if (game_tick - objects.started_time > 2.25)
+				anim2.add(objects.fire,{alpha:[1,0]}, false, 1,'linear');			
+		}
+	
 		
-		objects.bcg.tileScale.x=objects.bcg.tileScale.y=Math.abs(objects.game_cont.scale_x)/4+0.75;
 				
 		objects.projectiles.forEach(p=>p.process());
-			
 	},
 
 	incoming_move : function(move_data) {
 		
-		//получение хода от игрока другого
+		//получение хода от игрока другого	
+		game.opponent.pause_timer();
+		this.start_move(move_data);		
 		
-		
-		//запускаем анимацию
-		objects[opp_player].play_anim(skl_throw);	
+	},
+	
+	start_move : function(move_data){
 		
 		//запускаем снаряд
-		let projectile = game.add_projectile({	Q : move_data[0],
-							P : move_data[1],
-							spear : objects[opp_player].projectile_2.texture,
-							target : objects[my_player],
-							power : 30,
-							finish_callback : game.incoming_move_finished.bind(game)							
-							});
+		let projectile = game.add_projectile(move_data);
 							
 		obj_to_follow = projectile;
-		objects[opp_player].projectile.visible = false;
-		objects[opp_player].zz_projectile.visible = false;		
 		
-		setTimeout(function(){objects[opp_player].projectile.visible=true;objects[opp_player].zz_projectile.visible=true},1700);	
+		//запускаем анимацию
+		move_data.source.play_anim(skl_throw);	
+		move_data.source.projectile.visible = false;
+		move_data.source.zz_projectile.visible = false;
+		
+		//возвращаем копье игроку
+		setTimeout(function(){
+			anim2.add(move_data.source.projectile,{alpha:[0,1]}, true, 0.5,'linear');
+			anim2.add(move_data.source.zz_projectile,{alpha:[0,1]}, true, 0.5,'linear');
+			
+		},1700);	
+		
+	},	
+				
+	incoming_move_finished : async function(hit_data) {
+		
+		console.log('Прилетело от бота или онлайна ', hit_data);		
+		this.process_finished_move(hit_data, my_player);	
+	},
+	
+	outcoming_move_finished : async function(hit_data) {
+				
+		console.log('Мое копье прилетело ', hit_data);		
+		this.process_finished_move(hit_data, opp_player);
+	},
+	
+	process_finished_move : async function(hit_data, target_player) {
+		
+		if (hit_data.hit_type === 'body') {
+						
+						
+						
+			//это базовое уменьшение жизни
+			target_player.decrease_life(100);	
+
+			//дополнительный урон за попадание в голову
+			if (hit_data.limb === 'head') {
+				target_player.decrease_life(100);					
+				sound.play('hit_head');
+			} else {
+				sound.play('hit_body');
+				
+			}
+
+			
+			//запускаем кровь
+			blood.attach(hit_data.coll_data, target_player);			
+						
+			if (hit_data.power === 'freeze') {		
+
+				sound.play('freezed');
+				//дополнительный урон за замороженую стрелу
+				target_player.decrease_life(50);
+		
+				//если уже заморожен то размараживаем
+				if (target_player.frozen === 1) {				
+					target_player.unfroze();					
+				} else {
+					target_player.make_frozen();	
+
+					//немного ждем чтобы показать заморозку
+					if (await awaiter.add(1.5)===false) return;					
+				}
+
+
+			} else {
+				
+				if (hit_data.power === 'fire') {
+					this.add_fire(target_player);						
+					sound.play('flame');
+				}
+				
+
+				if (target_player.frozen === 1)
+					target_player.unfroze();			
+			}			
+		}
+		
+		if (hit_data.hit_type === 'wall') {
+			
+			sound.play('hit_wall');
+			
+			if (target_player.frozen === 1)
+				target_player.unfroze();	
+			
+			//немного ждем чтобы показать как воткнулась
+			if (await awaiter.add(1.5)===false) return;					
+
+		}
+		
+		if (hit_data.hit_type === 'out') {
+			
+			if (target_player.frozen === 1)
+				target_player.unfroze();	
+		}
+		
+
+		
+		//определяем на кого теперь фокусировать камеру и кто ходит
+		if ((target_player === my_player) === (target_player.frozen===1)){
+			obj_to_follow = opp_player;
+			my_turn = 0;
+		} else {
+			obj_to_follow = my_player;
+			my_turn = 1;	
+		}
+		
+		if (hit_data.power === 'lightning') {
+			
+			blood.attach([target_player.coll_data[1][2][0][0],target_player.coll_data[1][2][0][1],target_player.coll_data[1][2][0],target_player.coll_data[1][2][1]],target_player);
+			
+			if (await this.show_lightning(target_player) === false)
+				return;			
+		}		
+		
+		//немного ждем и передаем ход сопернику (боту)
+		if (my_turn === 0) {			
+			if (await awaiter.add(2.5)===false)	return false;	
+			this.opponent.make_move();
+		}
+		
+		if (this.on === 1)
+			this.opponent.switch_timer();
+		
+	},
+		
+	show_lightning : async function(player) {
+				
+		objects.lightning.visible=true;
+		objects.lightning.alpha=1;
+		objects.lightning.x = player.x + 85*player.scale_x;
+		objects.lightning.y = player.y-295;
+				
+		for (let i = 0 ; i < 6; i++) {
+			
+			sound.play('lightning');
+			player.decrease_life(30);
+			objects.lightning.texture  = gres['lightning'+i%3].texture;
+			anim2.add(objects.lightning,{alpha:[1,0]}, false, 0.25,'linear');
+			if (await awaiter.add(0.25)===false)
+				return false;	
+				
+		}
 		
 	},
 	
-	incoming_move_finished : function() {
+	add_projectile : function(params) {
 		
-		console.log('Прилетело копье ко мне ',objects.game_cont.scale_x);
-		my_turn = 1;	
-		obj_to_follow = my_player;
+		
+		sound.play('throw');
+		
+		//ищем свободное копье
+		for (let p of objects.projectiles) {
+			if (p.visible===false){
+				p.activate(params);
+				return p;				
+			}
+		}
+		
+		//если не нашли пустую
+		objects.projectiles[p].activate(params);
+		return objects.projectiles[p];
+		
+	},
+
+	stop_button_down : function() {
+		
+		this.close(')))');
+		
+	},
+
+	close : async function(result) {
+		
+		if (this.on === 0) return;
+		this.on = 0;
+		
+		//показыаем карточки
+		anim2.add(objects.my_card_cont,{x:[objects.my_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
+		anim2.add(objects.opp_card_cont,{x:[objects.opp_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
+		
+
+		awaiter.kill_all();
+		
+		objects.desktop.interactive = false;
+
+		objects.sbg_button.visible = false;
+		
+		power_buttons.close();
+		
+		some_process.game = function(){};		
+		this.opponent.close();
+				
+		await big_message.show('Игра окончена', result);
+		
+		anim2.add(objects.game_cont,{alpha:[1,0]}, false, 0.4,'linear');	
+		objects.parallax.visible = false;
+		objects.fire.visible = false;
+				
+		main_menu.activate();
+		
+		ad.show();
+		
+		set_state({state : 'o'});			
+				
+	}
+	
+}
+
+start_game = {
+	
+	parallax_data : {},
+	on : 0,
+	turn : 0,
+	opponent : {},
+	map_data : {},
+	
+	add_fire : function(player) {
+		
+		if (player.scale_x <0)
+			objects.fire.x = player.x - 145;
+		else
+			objects.fire.x = player.x+ 30;
+		
+		objects.fire.y = player.y+55;
+		objects.fire.alpha = 1;
+		objects.fire.visible = true;
+		objects.fire.play();
+		objects.fire.player = player;
+		objects.started_time = game_tick;
 		
 	},
 	
+	activate : async function(){
+				
+		
+		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
+		map_id = 10;
+		var map_loader = new PIXI.Loader();	
+		map_loader.add("map_load_list", "map"+map_id+"/map_load_list.txt",{timeout: 5000});
+		map_loader.add("map_col_data", "map"+map_id+"/collisions.txt",{timeout: 5000});
+		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
+		
+		this.map_data = eval(map_loader.resources.map_load_list.data);
+		map_col_data = eval(map_loader.resources.map_col_data.data);
+		
+		//добавляем из листа загрузки карты
+		for (var i = 0; i < this.map_data.length; i++)
+			if (this.map_data[i].class === "sprite" || this.map_data[i].class === "image" )
+				map_loader.add(this.map_data[i].name, git_src+'map'+map_id+'/' + this.map_data[i].name + "." +  this.map_data[i].image_format);
+		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
+		
+				
+		//устанаваем объекты сцены
+		for (var i = 0; i < this.map_data.length; i++) {
+			const obj_class = this.map_data[i].class;
+			const obj_name = this.map_data[i].name;
+			console.log('Processing: ' + obj_name)
+
+			switch (obj_class) {
+			case "sprite":
+				objects[obj_name].texture = map_loader.resources[obj_name].texture;
+				eval(this.map_data[i].code0);
+				break;
+
+			case "block":
+				eval(this.map_data[i].code0);
+				break;
+
+			}
+		}
+		
+		//устанаваем фон 
+		objects.desktop.visible = true;
+		objects.desktop.texture = map_loader.resources.bcg.texture;
+		anim2.add(objects.desktop,{alpha:[0,1]}, true, 0.4,'linear');
+
+		objects.parallax.visible = true;
+		objects.parallax.texture = map_loader.resources.parallax.texture;
+		objects.parallax.scale_xy = 0.85;
+
+		this.on = 1;
+
+		//убираем все стрелы
+		objects.projectiles.forEach(p => {
+			p.on = 0;
+			p.visible = false;
+		})
+		
+					
+		anim2.add(objects.rain_cont,{alpha:[0,1]}, true, 1,'linear');			
+		anim2.add(objects.game_cont,{alpha:[0,1]}, true, 1,'linear');	
+
+		//инициируем игроков
+		my_player = objects.player1;
+		opp_player = objects.player2;
+		
+		const skins = ['s0_','ca_','s1_','bm_','sm_','ff_','bs_','gl_'];
+		
+		objects.player1.init(skins[irnd(0,skins.length-1)]);
+		objects.player1.show_life_level(false);
+		
+		objects.player2.init(skins[irnd(0,skins.length-1)]);
+		objects.player2.show_life_level(false);
+		
+		obj_to_follow = objects.player1;
+				
+		//персчитываем коллизии
+		objects.player1.update_collision();
+		objects.player2.update_collision();
+		
+		some_process.game = this.process.bind(this);
+		
+		//капли дождя
+		let ang = 1.4;
+		let dx = Math.cos(ang)*40;
+		let dy = Math.sin(ang)*40;
+		objects.rain_drops.forEach(d=>{
+			
+			d.dx=dx;
+			d.dy=dy;
+			d.rotation=ang;
+			d.alpha=0.4;
+			d.height=10;
+		})
+		
+		
+		if (await awaiter.add(0.5)===false) return;		
+		
+		this.turn = 1;
+		
+		this.move_finished();
+
+	},
+	
+	process : function() {
+		
+		let tar_pivot_x;
+		let tar_pivot_y;
+		
+		if (obj_to_follow.follow_type === 0) {
+			tar_pivot_x = obj_to_follow.x + obj_to_follow.projectile.x*obj_to_follow.scale_x;
+			tar_pivot_y = obj_to_follow.y + obj_to_follow.projectile.y;		
+		} 
+		
+		if (obj_to_follow.follow_type === 1) {			
+			tar_pivot_x = obj_to_follow.x ;
+			tar_pivot_y = obj_to_follow.y;			
+		}
+		
+		const dx = tar_pivot_x - objects.game_cont.pivot.x;
+		const dy = tar_pivot_y - objects.game_cont.pivot.y;
+		const d = Math.sqrt(dx*dx+dy*dy);
+		
+		if (d>10) {			
+		
+			objects.game_cont.pivot.x += dx/10;
+			objects.game_cont.pivot.y += dy/10;
+			
+
+			const bcg_dx2 = objects.game_cont.pivot.x - this.parallax_data.scene_cen_x;
+			const bcg_dy2 = objects.game_cont.pivot.y - this.parallax_data.scene_cen_y;
+
+			objects.parallax.x = this.parallax_data.cen_x - bcg_dx2 / 20;
+			objects.parallax.y = this.parallax_data.cen_y - bcg_dy2 / 20;	
+		}			
+	
+				
+				
+		//дождь
+		for (let i =0 ; i < objects.rain_drops.length ; i ++) {
+			
+			objects.rain_drops[i].x+=objects.rain_drops[i].dx;
+			objects.rain_drops[i].y+=objects.rain_drops[i].dy;
+			
+			if (objects.rain_drops[i].y > 450) {
+				objects.rain_drops[i].x=irnd(0,800);
+				objects.rain_drops[i].y=irnd(0,-450);
+			}
+		}
+				
+		objects.projectiles.forEach(p=>p.process());
+	},
+	
+	start_move : function(move_data){
+		
+		//запускаем снаряд
+		let projectile = game.add_projectile(move_data);
+							
+		obj_to_follow = projectile;
+		
+		//запускаем анимацию
+		move_data.source.play_anim(skl_throw);	
+		move_data.source.projectile.visible = false;
+		move_data.source.zz_projectile.visible = false;
+		
+		//возвращаем копье игроку
+		setTimeout(function(){
+			anim2.add(move_data.source.projectile,{alpha:[0,1]}, true, 0.5,'linear');
+			anim2.add(move_data.source.zz_projectile,{alpha:[0,1]}, true, 0.5,'linear');
+			
+		},1700);	
+		
+	},	
+		
+	move_finished : async function(hit_data) {
+				
+		console.log('Копье прилетело ', hit_data);	
+		let move_data;
+		
+		if (await awaiter.add(1)===false) return;
+		if (this.turn === 1) {
+			
+			obj_to_follow = objects.player1;
+			move_data = {	Q : rnd2(-0.4,-0.8),
+								P : 120,
+								spear : objects.player1.projectile_2.texture,
+								source : objects.player1,
+								target : objects.player2,
+								power : 'none',
+								hit_callback : start_game.move_finished.bind(start_game)							
+								};
+		} else {
+			obj_to_follow = objects.player2;
+			move_data = {	Q : rnd2(-0.4,-0.8),
+								P : 120,
+								spear : objects.player2.projectile_2.texture,
+								source : objects.player2,
+								target : objects.player1,
+								power : 'none',
+								hit_callback : start_game.move_finished.bind(start_game)							
+								};
+		}
+		
+		if (await awaiter.add(1)===false) return;
+		this.start_move (move_data);
+		
+		this.turn = 1 - this.turn;
+
+	},
+		
 	add_projectile : function(params) {
 		
 		//ищем свободное копье
@@ -1547,32 +2296,21 @@ game = {
 		
 	},
 
-	stop : async function(result) {
+	close : async function(result) {
+		
+		if (this.on === 0) return;
+		this.on = 0;
+
+		awaiter.kill_all();
 		
 		objects.desktop.interactive = false;
-		
-		this.opponent.stop();
-		await big_message.show('Игра окончена','Рейтинг 3-3');
-		this.close();
-		main_menu.activate();
-		
-		
-	},
-
-	close : function() {
-		
-		//показыаем карточки
-		anim2.add(objects.my_card_cont,{x:[objects.my_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
-		anim2.add(objects.opp_card_cont,{x:[objects.opp_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
+				
+		some_process.game = function(){};		
+				
+		anim2.add(objects.rain_cont,{alpha:[1,0]}, false, 0.4,'linear');	
 		anim2.add(objects.game_cont,{alpha:[1,0]}, false, 0.4,'linear');	
-
-		some_process.game = function(){};
-		this.opponent.close();
-		
-		ad.show();
-		
-		set_state({state : 'o'});			
-		
+		objects.parallax.visible = false;
+		objects.fire.visible = false;
 				
 	}
 	
@@ -1597,6 +2335,7 @@ touch = {
 		
 		if (my_turn === 0) return;
 		
+		objects.guide_line.clear();
 		objects.guide_line.visible = true;
 		
         this.touch_data.x0 = e.data.global.x / app.stage.scale.x;
@@ -1604,27 +2343,7 @@ touch = {
 
         this.touch_data.x1 = this.touch_data.x0;
         this.touch_data.y1 = this.touch_data.y0;		
-		
-
-		
-		/*
-		if (game.state!=="playing")
-			return;
-		
-		if (objects.player.frozen===1)
-			return;
-
-
-
-		guide_line.visible = objects.dir_line.visible = objects.power_level_cont.visible = true;
-		
-		objects.power_slider.scale.x=0;
-		
-		this.p=0;
-		
-		objects.dir_line.x = objects.player.x+objects.player.width/2;
-		objects.dir_line.y = objects.player.y+40;*/
-		
+	
         drag = 1;
     },
 
@@ -1645,7 +2364,7 @@ touch = {
 
 			this.Q = Math.atan2(dy, dx);
 			this.Q = Math.max(-1.57, Math.min(this.Q, 0));
-			objects[my_player].skl_anim_tween(skl_prepare,0.5+this.Q/0.785398/2);
+			my_player.skl_anim_tween(skl_prepare,0.5+this.Q/0.785398/2);
 
 			//обновляем данные на основе корректированной длины
 			this.touch_data.x1 = this.touch_data.x0 + this.touch_len * Math.cos(this.Q);
@@ -1658,8 +2377,8 @@ touch = {
 			
 			
 			//отображаем направляющую в зависимости от наклона тела
-			let dxv=Math.sin(objects[my_player].spine.rotation);
-			let dyv=-Math.cos(objects[my_player].spine.rotation);			
+			let dxv=Math.sin(my_player.spine.rotation);
+			let dyv=-Math.cos(my_player.spine.rotation);			
 			//objects.dir_line.x = objects.player.x+objects.player.spine.x+dxv*30;
 			//objects.dir_line.y = objects.player.y+objects.player.spine.y+dyv*30;
 			
@@ -1674,38 +2393,37 @@ touch = {
 
     up: function () {
 		
-		if (my_turn === 0) return;
-		
-		if (drag === 0) return;
+		if (my_turn === 0 || drag === 0) return;		
 		
         objects.guide_line.visible =  false;
 		
+        drag = 0;	
+		my_turn = 0;		
+		
 		//запускаем локальный снаряд и получаем его ссылку
 		let Q = this.Q;
-		let P = this.touch_len*0.5;
-        let projectile = game.add_projectile({
+		let P = this.touch_len*0.6;
+		
+		//отправляем сопернику
+		game.opponent.send_move({Q:Q, P:P, power:power_buttons.selected_power});		
+		game.opponent.pause_timer();
+		
+		
+		game.start_move ({
 			Q : Q,
 			P : P,
-			target : objects[opp_player],
-			spear : objects[my_player].projectile_2.texture,
-			power : 30,
-			finish_callback : game.opponent.incoming_move_finished.bind(game.opponent)
+			source : my_player,
+			target : opp_player,
+			spear : my_player.projectile_2.texture,
+			power : power_buttons.selected_power,
+			hit_callback : function(hit_data) {
+				game.outcoming_move_finished(hit_data);
+			}
 		});		
 		
-		obj_to_follow = projectile;
-        drag = 0;	
-		my_turn = 0;
-		
-		game.opponent.send_move(Q,P);
-		
-		//запускаем анимацию
-		objects[my_player].play_anim(skl_throw);
-		objects[my_player].projectile.visible = false;
-		objects[my_player].zz_projectile.visible = false;
-
-			
-		
-		setTimeout(function(){objects[my_player].projectile.visible=true;objects[my_player].zz_projectile.visible=true},1700);	
+		//сообщаем если выстрелили бонусом
+		if (power_buttons.selected_power !== 'none')
+			power_buttons.bonus_fired(power_buttons.selected_power)
 
     },
 	
@@ -1895,7 +2613,7 @@ process_new_message=function(msg) {
 		//в данном случае я мастер и хожу вторым
 		opp_data.uid=msg.sender;
 		game_id=msg.game_id;
-		cards_menu.accepted_invite(msg.seed);
+		cards_menu.accepted_invite(msg);
 	}
 
 	//принимаем также отрицательный ответ от соответствующего соперника
@@ -1914,12 +2632,8 @@ process_new_message=function(msg) {
 				stickers.receive(msg.data);
 			
 			//получение сообщение с ходом игорка
-			if (msg.message==="CHAT")
-				mp_game.chat(msg.data);			
-
-			//получение сообщение с ходом игорка
 			if (msg.message==='MOVE')
-				game.incoming_move(msg.data);
+				mp_game.incoming_move(msg.move_data);
 			
 		}
 	}
@@ -2017,7 +2731,9 @@ req_dialog = {
 
 	accept: function() {
 
-		if (objects.req_cont.ready===false || objects.req_cont.visible===false ||  objects.confirm_cont.visible===true || objects.big_message_cont.visible===true || anim2.any_on() === true)
+
+		anim2.kill_anim(objects.game_cont);
+		if (objects.req_cont.ready===false || objects.req_cont.visible===false || objects.big_message_cont.visible===true || anim2.any_on() === true)
 			return;
 		
 		//устанавливаем окончательные данные оппонента
@@ -2027,11 +2743,13 @@ req_dialog = {
 
 		//отправляем информацию о согласии играть с идентификатором игры
 		game_id=~~(Math.random()*999);
+		let fp = irnd(0,1);
+		let map_id = irnd(0,9);
 				
 		
 		
 		//отправляем данные о начальных параметрах игры сопернику
-		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"ACCEPT", tm:Date.now(), game_id : game_id});
+		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"ACCEPT", tm:Date.now(), game_id : game_id, fp : 1 - fp, map_id : map_id});
 
 		//заполняем карточку оппонента
 		make_text(objects.opp_card_name,opp_data.name,150);
@@ -2042,7 +2760,7 @@ req_dialog = {
 		cards_menu.close();
 		sp_game.switch_close();
 		
-		game.activate(ME, mp_game);
+		game.activate(fp, mp_game, map_id);
 
 	},
 
@@ -2058,196 +2776,15 @@ req_dialog = {
 
 }
 
-feedback = {
-		
-	rus_keys : [[50,176,80,215.07,'1'],[90,176,120,215.07,'2'],[130,176,160,215.07,'3'],[170,176,200,215.07,'4'],[210,176,240,215.07,'5'],[250,176,280,215.07,'6'],[290,176,320,215.07,'7'],[330,176,360,215.07,'8'],[370,176,400,215.07,'9'],[410,176,440,215.07,'0'],[491,176,541,215.07,'<'],[70,224.9,100,263.97,'Й'],[110,224.9,140,263.97,'Ц'],[150,224.9,180,263.97,'У'],[190,224.9,220,263.97,'К'],[230,224.9,260,263.97,'Е'],[270,224.9,300,263.97,'Н'],[310,224.9,340,263.97,'Г'],[350,224.9,380,263.97,'Ш'],[390,224.9,420,263.97,'Щ'],[430,224.9,460,263.97,'З'],[470,224.9,500,263.97,'Х'],[510,224.9,540,263.97,'Ъ'],[90,273.7,120,312.77,'Ф'],[130,273.7,160,312.77,'Ы'],[170,273.7,200,312.77,'В'],[210,273.7,240,312.77,'А'],[250,273.7,280,312.77,'П'],[290,273.7,320,312.77,'Р'],[330,273.7,360,312.77,'О'],[370,273.7,400,312.77,'Л'],[410,273.7,440,312.77,'Д'],[450,273.7,480,312.77,'Ж'],[490,273.7,520,312.77,'Э'],[70,322.6,100,361.67,'!'],[110,322.6,140,361.67,'Я'],[150,322.6,180,361.67,'Ч'],[190,322.6,220,361.67,'С'],[230,322.6,260,361.67,'М'],[270,322.6,300,361.67,'И'],[310,322.6,340,361.67,'Т'],[350,322.6,380,361.67,'Ь'],[390,322.6,420,361.67,'Б'],[430,322.6,460,361.67,'Ю'],[511,322.6,541,361.67,')'],[451,176,481,215.07,'?'],[30,371.4,180,410.47,'ЗАКРЫТЬ'],[190,371.4,420,410.47,'_'],[430,371.4,570,410.47,'ОТПРАВИТЬ'],[531,273.7,561,312.77,','],[471,322.6,501,361.67,'('],[30,273.7,80,312.77,'EN']],	
-	eng_keys : [[50,176,80,215.07,'1'],[90,176,120,215.07,'2'],[130,176,160,215.07,'3'],[170,176,200,215.07,'4'],[210,176,240,215.07,'5'],[250,176,280,215.07,'6'],[290,176,320,215.07,'7'],[330,176,360,215.07,'8'],[370,176,400,215.07,'9'],[410,176,440,215.07,'0'],[491,176,541,215.07,'<'],[110,224.9,140,263.97,'Q'],[150,224.9,180,263.97,'W'],[190,224.9,220,263.97,'E'],[230,224.9,260,263.97,'R'],[270,224.9,300,263.97,'T'],[310,224.9,340,263.97,'Y'],[350,224.9,380,263.97,'U'],[390,224.9,420,263.97,'I'],[430,224.9,460,263.97,'O'],[470,224.9,500,263.97,'P'],[130,273.7,160,312.77,'A'],[170,273.7,200,312.77,'S'],[210,273.7,240,312.77,'D'],[250,273.7,280,312.77,'F'],[290,273.7,320,312.77,'G'],[330,273.7,360,312.77,'H'],[370,273.7,400,312.77,'J'],[410,273.7,440,312.77,'K'],[450,273.7,480,312.77,'L'],[471,322.6,501,361.67,'('],[70,322.6,100,361.67,'!'],[150,322.6,180,361.67,'Z'],[190,322.6,220,361.67,'X'],[230,322.6,260,361.67,'C'],[270,322.6,300,361.67,'V'],[310,322.6,340,361.67,'B'],[350,322.6,380,361.67,'N'],[390,322.6,420,361.67,'M'],[511,322.6,541,361.67,')'],[451,176,481,215.07,'?'],[30,371.4,180,410.47,'CLOSE'],[190,371.4,420,410.47,'_'],[430,371.4,570,410.47,'SEND'],[531,273.7,561,312.77,','],[30,273.7,80,312.77,'RU']],
-	keyboard_layout : [],
-	lang : '',
-	p_resolve : 0,
-	MAX_SYMBOLS : 50,
-	uid:0,
-	
-	show : function(uid) {
-		
-		this.set_keyboard_layout(['RU','EN'][LANG]);				
-		this.uid = uid;
-		objects.feedback_msg.text ='';
-		objects.feedback_control.text = `0/${this.MAX_SYMBOLS}`
-				
-		anim2.add(objects.feedback_cont,{y:[-400, objects.feedback_cont.sy]}, true, 0.4,'easeOutBack');	
-		return new Promise(function(resolve, reject){					
-			feedback.p_resolve = resolve;	  		  
-		});
-		
-	},
-	
-	set_keyboard_layout(lang) {
-		
-		this.lang = lang;
-		
-		if (lang === 'RU') {
-			this.keyboard_layout = this.rus_keys;
-			objects.feedback_bcg.texture = gres.feedback_bcg_rus.texture;
-		} 
-		
-		if (lang === 'EN') {
-			this.keyboard_layout = this.eng_keys;
-			objects.feedback_bcg.texture = gres.feedback_bcg_eng.texture;
-		}
-		
-	},
-	
-	close : function() {
-			
-		anim2.add(objects.feedback_cont,{y:[objects.feedback_cont.y,450]}, false, 0.4,'easeInBack');		
-		
-	},
-	
-	get_texture_for_key (key) {
-		
-		if (key === '<' || key === 'EN' || key === 'RU') return gres.hl_key1.texture;
-		if (key === 'ЗАКРЫТЬ' || key === 'ОТПРАВИТЬ' || key === 'SEND' || key === 'CLOSE') return gres.hl_key2.texture;
-		if (key === '_') return gres.hl_key3.texture;
-		return gres.hl_key0.texture;
-	},
-	
-	key_down : function(key) {
-		
-		
-		if (objects.feedback_cont.visible === false || objects.feedback_cont.ready === false) return;
-		
-		key = key.toUpperCase();
-		
-		if (key === 'ESCAPE') key = {'RU':'ЗАКРЫТЬ','EN':'CLOSE'}[this.lang];			
-		if (key === 'ENTER') key = {'RU':'ОТПРАВИТЬ','EN':'SEND'}[this.lang];	
-		if (key === 'BACKSPACE') key = '<';
-		if (key === ' ') key = '_';
-			
-		var result = this.keyboard_layout.find(k => {
-			return k[4] === key
-		})
-		
-		if (result === undefined) return;
-		this.pointerdown(null,result)
-		
-	},
-	
-	pointerdown : function(e, inp_key) {
-		
-		let key = -1;
-		let key_x = 0;
-		let key_y = 0;		
-		
-		if (e !== null) {
-			
-			let mx = e.data.global.x/app.stage.scale.x - objects.feedback_cont.x;
-			let my = e.data.global.y/app.stage.scale.y - objects.feedback_cont.y;;
-
-			let margin = 5;
-			for (let k of this.keyboard_layout) {			
-				if (mx > k[0] - margin && mx <k[2] + margin  && my > k[1] - margin && my < k[3] + margin) {
-					key = k[4];
-					key_x = k[0];
-					key_y = k[1];
-					break;
-				}
-			}			
-			
-		} else {
-			
-			key = inp_key[4];
-			key_x = inp_key[0];
-			key_y = inp_key[1];			
-		}
-		
-		
-		
-		//не нажата кнопка
-		if (key === -1) return;			
-				
-		//подсвечиваем клавишу
-		objects.hl_key.x = key_x - 10;
-		objects.hl_key.y = key_y - 10;		
-		objects.hl_key.texture = this.get_texture_for_key(key);
-		anim2.add(objects.hl_key,{alpha:[1, 0]}, false, 0.5,'linear');
-						
-		if (key === '<') {
-			objects.feedback_msg.text=objects.feedback_msg.text.slice(0, -1);
-			key ='';
-		}			
-		
-		
-		if (key === 'EN' || key === 'RU') {
-			this.set_keyboard_layout(key)
-			return;	
-		}	
-		
-		if (key === 'ЗАКРЫТЬ' || key === 'CLOSE') {
-			this.close();
-			this.p_resolve(['close','']);	
-			key ='';
-			sound.play('keypress');
-			return;	
-		}	
-		
-		if (key === 'ОТПРАВИТЬ' || key === 'SEND') {
-			
-			if (objects.feedback_msg.text === '') return;
-			
-			//если нашли ненормативную лексику то закрываем
-			let mats = /шлю[хш]|п[еи]д[аеор]|суч?ка|г[ао]ндо|х[ую][ейяе]л?|жоп|соси|чмо|говн|дерьм|трах|секс|сосат|выеб|пизд|срал|уеб[аико]щ?|ебень?|ебу[ч]|ху[йия]|еба[нл]|дроч|еба[тш]|педик|[ъы]еба|ебну|ебл[ои]|ебись|сра[кч]|манда|еб[лн]я|ублюд|пис[юя]/i;
-			let text_no_spaces = objects.feedback_msg.text.replace(/ /g,'');
-			if (text_no_spaces.match(mats)) {
-				this.close();
-				this.p_resolve(['close','']);	
-				key ='';
-				return;
-			}
-			
-			this.close();
-			this.p_resolve(['sent',objects.feedback_msg.text]);	
-			key ='';
-			sound.play('keypress');
-			return;	
-		}	
-		
-		
-		
-		if (objects.feedback_msg.text.length >= this.MAX_SYMBOLS)  {
-			sound.play('locked');
-			return;			
-		}
-		
-		if (key === '_') {
-			objects.feedback_msg.text += ' ';	
-			key ='';
-		}			
-		
-
-		sound.play('keypress');
-		
-		objects.feedback_msg.text += key;	
-		objects.feedback_control.text = `${objects.feedback_msg.text.length}/${this.MAX_SYMBOLS}`		
-		
-	}
-	
-}
-
 main_menu= {
 
 	activate: async function() {
 
 
-		objects.bcg.width=800;
-		objects.bcg.height=450;
-		objects.bcg.x=400;
-		objects.bcg.y=225;
-		objects.bcg.tilePosition.y=400;
-		objects.bcg.uvRespectAnchor = true;
-		objects.bcg.anchor.set(0.5,0.5);
-		objects.bcg.alpha=0.5;
-
+		start_game.activate();
+		objects.start_game_cover.visible = true;
+		objects.start_game_cover.alpha = 0.5;
+		objects.start_game_cover.tint = 0x444444;
 
 		some_process.main_menu = this.process;
 		anim2.add(objects.mb_cont,{x:[800,objects.mb_cont.sx]}, true, 1,'easeInOutCubic');
@@ -2263,7 +2800,10 @@ main_menu= {
 	},
 
 	close : async function() {
+		
+		start_game.close();
 
+		anim2.add(objects.start_game_cover,{alpha:[0.5,0]}, false, 1,'linear');
 		//some_process.main_menu = function(){};
 		objects.mb_cont.visible=false;
 		some_process.main_menu_process = function(){};
@@ -2274,6 +2814,9 @@ main_menu= {
 
 	pb_down: async function () {
 
+
+		anim2.kill_anim(objects.game_cont);
+		
 		if (anim2.any_on()===true || objects.id_cont.visible === true) {
 			sound.play('locked');
 			return
@@ -2288,6 +2831,7 @@ main_menu= {
 	
 	lb_button_down: async function () {
 
+		anim2.kill_anim(objects.game_cont);
 		if (anim2.any_on()===true) {
 			sound.play('locked');
 			return
@@ -2302,6 +2846,7 @@ main_menu= {
 
 	rules_button_down: async function () {
 
+		anim2.kill_anim(objects.game_cont);
 		if (anim2.any_on()===true) {
 			sound.play('locked');
 			return
@@ -2315,27 +2860,11 @@ main_menu= {
 
 	},
 
-	chips_button_down : async function() {
+	shop_button_down : async function() {
 		
-		if (my_data.rating > 50) {
-			
-			let res = await confirm_dialog.show(['Получить фишки можно только если у вас их меньше 50. Хотите все равно посмотреть рекламу?','You can only get chips if you have less than 50 of them. Do you want to watch the ad anyway?'][LANG]);
-			if (res === 'ok')	await ad.show2();			
-			return;
-		}
-		
-		let res = await confirm_dialog.show(['Получить 100 фишек за просмотр рекламы?','Get 100 chips (reward video)?'][LANG]);
-		if (res === 'ok') {
-			
-			let res2 = await ad.show2();
-			if (res2 !== 'err' || game_platform === 'GOOGLE_PLAY' || game_platform === 'DEBUG') {
-				sound.play("confirm_dialog");
-				table.update_balance(ME,100);				
-			} else {
-				sound.play('locked')
-			}
 
-		}
+		this.close();
+		shop.activate();
 		
 	},
 
@@ -2363,122 +2892,83 @@ main_menu= {
 
 }
 
-chat = {
+shop = {
 	
-	last_record_end : 0,
+	cur_hero : 0,
+	heros_list : ['s0','gl','bs','ff','sm','bm','ca'],
 	
-	activate : function() {
+	activate : function() {		
+	
+		this.cur_hero = my_data.hero_id;
 		
-		//firebase.database().ref('chat').remove();
-		//return;		
+		objects.shop_cont.visible = true;
+		objects.shop_player.set_skin_by_prefix(this.heros_list[this.cur_hero]+'_');
+		objects.shop_player.skl_anim_goto_frame(skl_throw,0);
+		some_process.shop = this.process;
 		
-		this.last_record_end = 0;
-		objects.chat_records_cont.y = objects.chat_records_cont.sy;
+		//заполняем актуальную информацию по бонусам
+		this.update_bonuses_info();
 		
-		for(let rec of objects.chat_records) {
-			rec.visible = false;			
-			rec.msg_id = -1;	
-			rec.tm=0;
-		}
-		
-		objects.chat_cont.visible = true;
-		//подписываемся на чат
-		//подписываемся на изменения состояний пользователей
-		firebase.database().ref('chat').once('value', snapshot => {chat.chat_load(snapshot.val());});		
-		firebase.database().ref('chat').on('child_changed', snapshot => {chat.chat_updated(snapshot.val());});
 	},
+	
+	update_bonuses_info : function() {
+		
+		objects.freeze_balance.text = my_data.bonuses.freeze;
+		objects.fire_balance.text = my_data.bonuses.fire;
+		objects.lightning_balance.text = my_data.bonuses.lightning;
+		
+	},
+	
+	prv_down : function() {
+		if (this.cur_hero  === 0) return;
+		this.cur_hero--;
+		objects.shop_player.set_skin_by_prefix(this.heros_list[this.cur_hero]+'_');	
+	},
+	
+	next_down : function() {
+		if (this.cur_hero  === this.heros_list.length-1) return;
+		this.cur_hero++;
+		objects.shop_player.set_skin_by_prefix(this.heros_list[this.cur_hero]+'_');
+	},
+	
+	player_buy_down : function() {
+		console.log('player_buy_down');	
+		
+		
+		my_data.hero_id = this.cur_hero;
+		objects.shop_player.set_skin_by_prefix(this.heros_list[my_data.hero_id]+'_');
+		firebase.database().ref("players/"+my_data.uid+"/hero_id").set(my_data.hero_id);
+		
+	},
+	
+	bonus_down : function(bonus) {
+		console.log(bonus);	
+		my_data.bonuses[bonus]++;
+					
+		//заполняем актуальную информацию по бонусам
+		firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
+		this.update_bonuses_info();
+	},
+	
+	process : function() {
+		
+		objects.shop_player.skl_anim_tween(skl_prepare,0.5+Math.sin(game_tick)*0.5);
 				
-	get_oldest_record : function () {
-		
-		let oldest = objects.chat_records[0];
-		
-		for(let rec of objects.chat_records)
-			if (rec.tm < oldest.tm)
-				oldest = rec;			
-		return oldest;
-
-	},
-		
-	chat_load : async function(data) {
-		
-		if (data === null) return;
-		
-		data = Object.keys(data).map((key) => data[key]);
-		data.sort(function(a, b) {	return a[3] - b[3];});
-			
-		for (let c = data.length - 13; c<data.length;c++)
-			await this.chat_updated(data[c]);			
-		
-	},	
-		
-	chat_updated : async function(data) {		
-		
-		console.log(data);
-		
-		var result = objects.chat_records.find(obj => {
-		  return obj.msg_id === data[4];
-		})
-		
-		if (result !== undefined) {			
-			//result.tm = data[3];
-			return;
-		};
-		
-		let rec = this.get_oldest_record();
-		
-		//сразу заносим айди чтобы проверять
-		rec.msg_id = data[4];
-		
-		rec.y = this.last_record_end;
-		
-		await rec.set(...data)		
-		
-		this.last_record_end += 35;		
-		
-		objects.chat_records_cont.y-=35
-
-		//anim2.add(objects.chat_records_cont,{y:[objects.chat_records_cont.y, objects.chat_records_cont.y-35]}, true, 0.25,'easeInOutCubic');		
-		
 	},
 	
-	wheel_event : function(delta) {
+	back_down : function() {
 		
-		//objects.chat_records_cont.y-=delta*5;
-		
+		this.close();
+		main_menu.activate();
 		
 	},
 	
 	close : function() {
 		
-		objects.chat_cont.visible = false;
-		firebase.database().ref('chat').off();
-		if (objects.feedback_cont.visible === true)
-			feedback.close();
-	},
-	
-	close_down : async function() {
+		anim2.add(objects.shop_cont,{alpha:[1,0]}, false, 1,'linear');	
+		some_process.shop = function(){};		
 		
-		sound.play('click');
-		this.close();
-		main_menu.activate();
-		
-
-		
-	},
-	
-	open_keyboard : async function() {
-		
-		//пишем отзыв и отправляем его		
-		sound.play('click');
-		let fb = await feedback.show(opp_data.uid);		
-		if (fb[0] === 'sent') {
-			
-			await firebase.database().ref('chat/'+irnd(1,50)).set([ my_data.uid, my_data.name, fb[1], firebase.database.ServerValue.TIMESTAMP, irnd(0,9999999)]);
-		
-		}		
-		
-	}
-
+	}	
 	
 }
 
@@ -3242,20 +3732,16 @@ cards_menu={
 
 		pending_player="";
 
-		sound.play('click');
-			
+		sound.play('click');			
 
 		//показыаем кнопку приглашения
 		objects.invite_button.texture=game_res.resources.invite_button.texture;
 	
-		anim2.add(objects.invite_cont,{x:[800, objects.invite_cont.sx]}, true, 0.15,'linear');
-		anim2.add(objects.cards_menu_header,{x:[objects.cards_menu_header.sx,230]}, true, 0.15,'linear');
-		anim2.add(objects.players_online,{x:[objects.players_online.sx,230]}, true, 0.15,'linear');
+		anim2.add(objects.invite_cont,{y:[-400, objects.invite_cont.sy]}, true, 0.15,'easeOutBack');
 		
 		//копируем предварительные данные
 		cards_menu._opp_data = {uid:objects.mini_cards[card_id].uid,name:objects.mini_cards[card_id].name,rating:objects.mini_cards[card_id].rating};
-		
-		
+				
 		objects.invite_button_title.text=['Пригласить','Send invite'][LANG];
 
 		let invite_available = 	cards_menu._opp_data.uid !== my_data.uid;
@@ -3286,7 +3772,7 @@ cards_menu={
 		anim2.add(objects.cards_menu_header,{y:[ objects.cards_menu_header.y, -50]}, false, 0.4,'easeInCubic');
 		anim2.add(objects.cards_cont,{alpha:[1,0]}, false, 0.4,'linear');		
 		anim2.add(objects.back_button,{x:[objects.back_button.sx, 800]}, false, 0.5,'easeInCubic');
-		anim2.add(objects.desktop,{alpha:[1,0]}, false, 0.4,'linear');
+		//anim2.add(objects.desktop,{alpha:[1,0]}, false, 0.4,'linear');
 		await anim2.add(objects.players_online,{y:[objects.players_online.y, 470]}, false, 0.5,'easeInCubic');
 
 		//больше ни ждем ответ ни от кого
@@ -3323,10 +3809,7 @@ cards_menu={
 		}
 
 
-		anim2.add(objects.invite_cont,{x:[objects.invite_cont.x, 800]}, false, 0.15,'linear');
-		anim2.add(objects.cards_menu_header,{x:[230,objects.cards_menu_header.sx]}, true, 0.15,'linear');
-		anim2.add(objects.players_online,{x:[230,objects.players_online.sx]}, true, 0.15,'linear');
-
+		anim2.add(objects.invite_cont,{y:[objects.invite_cont.y,450]}, false, 0.15,'easeInBack');
 	},
 
 	send_invite: async function() {
@@ -3349,7 +3832,7 @@ cards_menu={
 			make_text(objects.opp_card_name,cards_menu._opp_data.name,160);
 			objects.opp_card_rating.text=opp_data.rating;
 			objects.opp_avatar.texture=objects.invite_avatar.texture;			
-			game.activate(ME, sp_game);
+			game.activate(ME, sp_game, irnd(0,9));
 		}
 		else
 		{
@@ -3371,7 +3854,7 @@ cards_menu={
 
 	},
 
-	accepted_invite: async function(seed) {
+	accepted_invite: async function(msg) {
 
 		//убираем запрос на игру если он открыт
 		req_dialog.hide();
@@ -3386,7 +3869,7 @@ cards_menu={
 
 		//закрываем меню и начинаем игру
 		await cards_menu.close();
-		game.activate(OPP, mp_game);
+		game.activate(msg.fp, mp_game, msg.map_id);
 	},
 
 	back_button_down: async function() {
@@ -3671,8 +4154,8 @@ async function load_resources() {
 
 	document.getElementById("m_progress").style.display = 'flex';
 
-	let git_src="https://akukamil.github.io/duel2/"
-	//git_src=""
+	//let git_src="https://akukamil.github.io/duel2/"
+	git_src=""
 
 	//подпапка с ресурсами
 	let lang_pack = ['RUS','ENG'][LANG];
@@ -3690,17 +4173,17 @@ async function load_resources() {
 	game_res.add('close',git_src+'sounds/close.mp3');
 	game_res.add('locked',git_src+'sounds/locked.mp3');
 	game_res.add('clock',git_src+'sounds/clock.mp3');
-	game_res.add('card',git_src+'sounds/card2.mp3');
-	game_res.add('card_take',git_src+'sounds/card.mp3');
+	game_res.add('lightning',git_src+'sounds/lightning.mp3');
+	game_res.add('flame',git_src+'sounds/flame.mp3');
 	game_res.add('confirm_dialog',git_src+'sounds/confirm_dialog.mp3');
 	game_res.add('move',git_src+'sounds/move.mp3');
-	game_res.add('done',git_src+'sounds/done.mp3');
-	game_res.add('razdacha',git_src+'sounds/razdacha.mp3');
+	game_res.add('freezed',git_src+'sounds/freezed.mp3');
+	game_res.add('throw',git_src+'sounds/throw.mp3');
 	game_res.add('card_open',git_src+'sounds/card_open.mp3');
-	game_res.add('inc_card',git_src+'sounds/inc_card.mp3');
-	game_res.add('take',git_src+'sounds/take.mp3');
+	game_res.add('hit_wall',git_src+'sounds/hit_wall.mp3');
+	game_res.add('hit_head',git_src+'sounds/hit_head.mp3');
 	game_res.add('dialog',git_src+'sounds/dialog.mp3');
-	game_res.add('plus_minus_bet',git_src+'sounds/plus_minus_bet.mp3');
+	game_res.add('hit_body',git_src+'sounds/hit_body.mp3');
 	game_res.add('keypress',git_src+'sounds/keypress.mp3');
 	
     //добавляем из листа загрузки
@@ -3713,11 +4196,15 @@ async function load_resources() {
 
 
 	//вручную добавляем скины так как они на отдельном листе
-	const skins_prefixes = ['zz','s0'];
+	const skins_prefixes = ['zz','s0','s1','gl','bs','ff','sm','bm','ca'];
 	const limb_names = ['spine','left_arm1','left_arm2','right_arm1','right_arm2','left_leg1','left_leg2','right_leg1','right_leg2','projectile'];
 	for(let s of skins_prefixes)
 		for (let l of limb_names)
 			game_res.add(s +'_' + l, git_src+'res/SKINS/' + s + '_' + l + ".png");
+
+	//добавляем огонь
+	for (var i = 0; i < 32; i++)
+		game_res.add("fire"+i, git_src+"res/FIRE/image_part_0"+(i+1)+ ".png");
 
 	//это файл с анимациями который нужно оптимизировать потом
 	game_res.add("skl_prepare", git_src+"res/skl_prepare.txt");
@@ -3826,7 +4313,7 @@ async function init_game_env(env) {
 	await load_resources();
 	
 	await auth2.init();
-	
+		
 	//инициируем файербейс
 	if (firebase.apps.length===0) {
 		firebase.initializeApp({			
@@ -3841,8 +4328,9 @@ async function init_game_env(env) {
 	}
 
 	//создаем приложение пикси и добавляем тень
-	app = new PIXI.Application({width:M_WIDTH, height:M_HEIGHT,antialias:true});
-	document.body.appendChild(app.view).style["boxShadow"] = "0 0 15px #000000";
+	app.stage = new PIXI.Container();
+	app.renderer = new PIXI.Renderer({width:M_WIDTH, height:M_HEIGHT,antialias:true});
+	document.body.appendChild(app.renderer.view).style["boxShadow"] = "0 0 15px #000000";
 	
 	//изменение размера окна
 	resize();
@@ -3937,8 +4425,6 @@ async function init_game_env(env) {
 	make_text(objects.my_card_name,my_data.name,150);
 	
 	//разные события
-	window.addEventListener("wheel", event => cards_menu.wheel_event(Math.sign(event.deltaY)));	
-	window.addEventListener('keydown', function(event) { feedback.key_down(event.key)});
 	document.addEventListener("visibilitychange", vis_change);
 		
 	//загружаем остальные данные из файербейса
@@ -3947,9 +4433,33 @@ async function init_game_env(env) {
 	
 	//это защита от неправильных данных
 	if (other_data===null || isNaN(other_data.rating))
-		my_data.rating = 100;
+		my_data.rating = 1400;
 	else
 		my_data.rating = other_data.rating;
+	
+	
+	
+	if (other_data===null || isNaN(other_data.hero_id))
+		my_data.hero_id = 0;
+	else
+		my_data.hero_id = other_data.hero_id;
+	
+	
+	
+	if (other_data===null || isNaN(other_data.money))
+		my_data.money = 0;
+	else
+		my_data.money = other_data.money;
+	
+	
+	
+	
+	if (other_data===null || other_data.bonuses === undefined)
+		my_data.bonuses = {freeze:0, fire:0,lightning:0};
+	else
+		my_data.bonuses = other_data.bonuses;
+	
+	
 	
 	//идентификатор клиента
 	client_id = irnd(10,999999);
@@ -3978,6 +4488,9 @@ async function init_game_env(env) {
 	firebase.database().ref("players/"+my_data.uid+"/name").set(my_data.name);
 	firebase.database().ref("players/"+my_data.uid+"/pic_url").set(my_data.pic_url);				
 	firebase.database().ref("players/"+my_data.uid+"/rating").set(my_data.rating);
+	firebase.database().ref("players/"+my_data.uid+"/hero_id").set(my_data.hero_id);
+	firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);
+	firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
 	firebase.database().ref("players/"+my_data.uid+"/tm").set(firebase.database.ServerValue.TIMESTAMP);
 	
 	//устанавливаем мой статус в онлайн
@@ -4036,7 +4549,16 @@ function main_loop() {
 	for (let key in some_process)
 		some_process[key]();	
 	
-
+	//обработка отложенных функций
+	func_scheduler.process();
+	
+	blood.process();
+	
+	//обработка кастомных промисов
+	awaiter.process();
+	
+	//отображаем сцену
+	app.renderer.render(app.stage);	
 	
 	requestAnimationFrame(main_loop);
 	
