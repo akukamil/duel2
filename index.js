@@ -4,7 +4,7 @@ hidden_state_start = 0,room_name = 'states', pending_player = '', my_data={opp_i
 opp_data={}, some_process = {}, git_src = '', ME = 0, OPP = 1, WIN = 1, DRAW = 0, LOSE = -1, NOSYNC = 2, my_turn = 1, skl_prepare, skl_throw, skl_lose, drag = 0, obj_to_follow = null, my_player = null, opp_player = null, cont_inv = 1;
 
 var col_data=[['head','spine',[[-11,-19],[-1,-25],[9,-21],[12,-12],[9,-4],[0,0]]],['spine','spine',[[-1,-3],[0,29]]],['left_leg1','left_leg1',[[-14,-1],[16,-1]]],['left_leg2','left_leg2',[[-13,-3],[14,-3]]],['right_leg1','right_leg1',[[-14,-1],[16,-1]]],['right_leg2','right_leg2',[[13,2],[-13,2]]],['left_arm1','left_arm1',[[14,0],[-13,0]]],['left_arm2','left_arm2',[[-12,-1],[14,-1]]],['right_arm1','right_arm1',[[-15,0],[12,0]]],['right_arm2','right_arm2',[[-14,0],[12,0]]]];
-
+const hero_prefixes = ['s0','gl','bs','ff','sm','bm','ca'];
 var map_col_data=[];
 
 irnd = function(min,max) {	
@@ -384,35 +384,21 @@ class player_class extends PIXI.Container{
 		
 		
 	}
-
-	set_skin_by_id(id) {
-		
-		let skin_prefix=""
-		if (id===undefined) {
-			skin_prefix=skins_powers[this.skin_id][0];		
-		}else {
-			this.skin_id=id;
-			skin_prefix=skins_powers[id][0];
-		}
-		
-		this.set_skin_by_prefix(skin_prefix);
-		
-	}
 	
 	set_skin_by_prefix (prefix) {
 		
-		this.left_leg1.texture=gres[prefix+'left_leg1'].texture
-		this.left_leg2.texture=gres[prefix+'left_leg2'].texture
-		this.right_leg1.texture=gres[prefix+'right_leg1'].texture
-		this.right_leg2.texture=gres[prefix+'right_leg2'].texture
+		this.left_leg1.texture=gres[prefix+'_left_leg1'].texture
+		this.left_leg2.texture=gres[prefix+'_left_leg2'].texture
+		this.right_leg1.texture=gres[prefix+'_right_leg1'].texture
+		this.right_leg2.texture=gres[prefix+'_right_leg2'].texture
 		
-		this.left_arm1.texture=gres[prefix+'left_arm1'].texture
-		this.left_arm2.texture=gres[prefix+'left_arm2'].texture
-		this.right_arm1.texture=gres[prefix+'right_arm1'].texture
-		this.right_arm2.texture=gres[prefix+'right_arm2'].texture
+		this.left_arm1.texture=gres[prefix+'_left_arm1'].texture
+		this.left_arm2.texture=gres[prefix+'_left_arm2'].texture
+		this.right_arm1.texture=gres[prefix+'_right_arm1'].texture
+		this.right_arm2.texture=gres[prefix+'_right_arm2'].texture
 		
-		this.spine.texture=gres[prefix+'spine'].texture;
-		this.projectile_2.texture=gres[prefix+'projectile'].texture	
+		this.spine.texture=gres[prefix+'_spine'].texture;
+		this.projectile_2.texture=gres[prefix+'_projectile'].texture	
 		
 	}
 		
@@ -616,7 +602,7 @@ class projectile_class extends PIXI.Container {
 		this.y = this.y0+0.5*9.8*this.t*this.t+this.vy0*this.t;
 		
 		this.rotation=Math.atan(vy/vx);	
-		this.t+=0.1;
+		this.t+=0.09;
 		
 		//проверяем столкновение с объектами				
 		if(this.on===1) {
@@ -765,10 +751,11 @@ blood = {
 	coll_line_pnt0 : [],
 	coll_line_pnt1 : [],
 	dir : 0,
+	duration : 0,
 	
-	attach : function(coll_data, player) {
+	attach : function(coll_data, player, duration) {
 							
-							
+		this.duration = duration;				
 		this.dir = player.scale_x;
 		
 		//запоминаем точки конечности
@@ -818,7 +805,7 @@ blood = {
 	process : function () {
 		
 		//добавляем новые капли крови
-		if (game_tick < this.blood_start_time + 1.5) {
+		if (game_tick < this.blood_start_time + this.duration) {
 			if (game_tick > this.last_splash_time + 0.05) {
 					
 				this.add_splash();				
@@ -1108,6 +1095,18 @@ sound = {
 			return;
 		
 		game_res.resources[snd_res].sound.play();	
+		
+	},
+	
+	play_loop : function(snd_res) {
+		
+		game_res.resources[snd_res].sound.play({loop:true});	
+		
+	},
+	
+	stop : function(snd_res) {
+		
+		game_res.resources[snd_res].sound.stop();	
 		
 	},
 	
@@ -1563,13 +1562,21 @@ power_buttons = {
 	down : function(bonus) {
 		
 		
-		if (my_data.bonuses[bonus] === 0) return;
+		
+		
+		if (my_data.bonuses[bonus] === 0) {
+			
+			sound.play('locked');
+			return;
+		}
+
 		
 		if (this.selected_power===bonus) {
 			this.selected_power='none';				
 			my_player.set_projectile_power('none');		
 			objects.upg_button_frame.visible=false;
 		} else {
+			sound.play('click2');
 			this.selected_power=bonus;				
 			my_player.set_projectile_power(bonus);	
 			const button_ref = objects[bonus + '_button'];
@@ -1577,6 +1584,8 @@ power_buttons = {
 			objects.upg_button_frame.y=button_ref.y;
 			objects.upg_button_frame.visible=true;
 		}
+		
+		
 		
 		
 	},
@@ -1653,6 +1662,9 @@ game = {
 	
 	activate : async function(start_player, opponent, map_id){
 				
+		//убираем объекты так как они могли остаться от предыдущих игр
+		objects.map_object2.visible=false;
+		objects.map_object3.visible=false;
 		
 		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
 		//map_id = 3;
@@ -1742,15 +1754,14 @@ game = {
 		
 	
 		//инициируем игроков
-		objects.player1.init('ca_');
 		objects.player1.show_life_level(true);
-		objects.player2.init('s0_');
 		objects.player2.show_life_level(true);
 		
 		
 		//персчитываем коллизии
 		objects.player1.update_collision();
-		objects.player2.update_collision();
+		objects.player2.update_collision();		
+		
 		
 		some_process.game = this.process.bind(this);
 
@@ -1759,6 +1770,8 @@ game = {
 		my_player = [objects.player1, objects.player2][start_player];
 		opp_player = [objects.player1, objects.player2][1 - start_player];
 		
+		my_player.init(hero_prefixes[my_data.hero_id]);
+		opp_player.init('ca_');
 		if (start_player === ME)
 			obj_to_follow = my_player;
 		else
@@ -1879,14 +1892,15 @@ game = {
 			if (hit_data.limb === 'head') {
 				target_player.decrease_life(100);					
 				sound.play('hit_head');
+				blood.attach(hit_data.coll_data, target_player,1.5);	
 			} else {
 				sound.play('hit_body');
+				blood.attach(hit_data.coll_data, target_player,1);	
 				
 			}
 
 			
-			//запускаем кровь
-			blood.attach(hit_data.coll_data, target_player);			
+					
 						
 			if (hit_data.power === 'freeze') {		
 
@@ -1949,7 +1963,7 @@ game = {
 		
 		if (hit_data.power === 'lightning') {
 			
-			blood.attach([target_player.coll_data[1][2][0][0],target_player.coll_data[1][2][0][1],target_player.coll_data[1][2][0],target_player.coll_data[1][2][1]],target_player);
+			blood.attach([target_player.coll_data[1][2][0][0],target_player.coll_data[1][2][0][1],target_player.coll_data[1][2][0],target_player.coll_data[1][2][1]],target_player,1.5);
 			
 			if (await this.show_lightning(target_player) === false)
 				return;			
@@ -2007,7 +2021,14 @@ game = {
 
 	stop_button_down : function() {
 		
-		this.close(')))');
+		if (objects.sbg_button.ready === false) {
+			sound.play('locked');
+			return
+		}
+		
+		
+		sound.play('click');
+		this.close('my_cancel');
 		
 	},
 
@@ -2020,12 +2041,19 @@ game = {
 		anim2.add(objects.my_card_cont,{x:[objects.my_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
 		anim2.add(objects.opp_card_cont,{x:[objects.opp_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
 		
-
+		
+		if (result === 'my_win' || result === 'opp_no_time')
+			sound.play('victory');
+		
+		if (result === 'opp_win' || result === 'my_no_time' || result === 'my_cancel')
+			sound.play('lose');
+		
+		
 		awaiter.kill_all();
 		
 		objects.desktop.interactive = false;
 
-		objects.sbg_button.visible = false;
+		anim2.add(objects.sbg_button,{x:[objects.sbg_button.x,850]}, false, 0.6,'easeInBack');	
 		
 		power_buttons.close();
 		
@@ -2074,6 +2102,9 @@ start_game = {
 	
 	activate : async function(){
 				
+		//убираем объекты так как они могли остаться от предыдущих игр
+		objects.map_object2.visible=false;
+		objects.map_object3.visible=false;
 		
 		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
 		map_id = 10;
@@ -2136,7 +2167,7 @@ start_game = {
 		my_player = objects.player1;
 		opp_player = objects.player2;
 		
-		const skins = ['s0_','ca_','s1_','bm_','sm_','ff_','bs_','gl_'];
+		const skins = ['s0','ca','s1','bm','sm','ff','bs','gl'];
 		
 		objects.player1.init(skins[irnd(0,skins.length-1)]);
 		objects.player1.show_life_level(false);
@@ -2249,6 +2280,21 @@ start_game = {
 		console.log('Копье прилетело ', hit_data);	
 		let move_data;
 		
+		
+		if (hit_data!==undefined && hit_data.hit_type === 'body') {
+						
+			if (hit_data.limb === 'head') {		
+				sound.play('hit_head');
+			} else {
+				sound.play('hit_body');
+			}
+		}
+		
+		if (hit_data!==undefined && hit_data.hit_type === 'wall') {			
+			sound.play('hit_wall');			
+		}
+		
+		
 		if (await awaiter.add(1)===false) return;
 		if (this.turn === 1) {
 			
@@ -2277,6 +2323,9 @@ start_game = {
 		this.start_move (move_data);
 		
 		this.turn = 1 - this.turn;
+		
+		
+		
 
 	},
 		
@@ -2781,6 +2830,7 @@ main_menu= {
 	activate: async function() {
 
 
+		sound.play_loop('rain', true)
 		start_game.activate();
 		objects.start_game_cover.visible = true;
 		objects.start_game_cover.alpha = 0.5;
@@ -2802,21 +2852,21 @@ main_menu= {
 	close : async function() {
 		
 		start_game.close();
+		sound.stop('rain')
 
-		anim2.add(objects.start_game_cover,{alpha:[0.5,0]}, false, 1,'linear');
+		anim2.add(objects.start_game_cover,{alpha:[0.5,0]}, false, 0.5,'linear');
 		//some_process.main_menu = function(){};
 		objects.mb_cont.visible=false;
 		some_process.main_menu_process = function(){};
-		anim2.add(objects.mb_cont,{x:[objects.mb_cont.x,800]}, true, 1,'easeInOutCubic');
-		anim2.add(objects.game_title,{y:[objects.game_title.y,-300]}, true, 1,'linear');
+		anim2.add(objects.mb_cont,{x:[objects.mb_cont.x,800]}, true, 0.5,'easeInOutCubic');
+		anim2.add(objects.game_title,{y:[objects.game_title.y,-300]}, true, 0.5,'linear');
 		//await anim2.add(objects.desktop,{alpha:[1,0]}, false, 0.6,'linear');	
 	},
 
 	pb_down: async function () {
 
 
-		anim2.kill_anim(objects.game_cont);
-		
+		anim2.kill_anim(objects.game_cont);		
 		if (anim2.any_on()===true || objects.id_cont.visible === true) {
 			sound.play('locked');
 			return
@@ -2853,7 +2903,8 @@ main_menu= {
 		};
 
 		sound.play('click');
-	
+		
+		sound.play('click');
 		await this.close();
 		rules.activate();
 
@@ -2862,7 +2913,14 @@ main_menu= {
 
 	shop_button_down : async function() {
 		
-
+		anim2.kill_anim(objects.game_cont);		
+		if (anim2.any_on()===true || objects.id_cont.visible === true) {
+			sound.play('locked');
+			return
+		};
+		
+		sound.play('click');
+		
 		this.close();
 		shop.activate();
 		
@@ -2895,69 +2953,120 @@ main_menu= {
 shop = {
 	
 	cur_hero : 0,
-	heros_list : ['s0','gl','bs','ff','sm','bm','ca'],
+	cur_spear : 0,
+	spears_list : ['freeze','fire','lightning'],
+	hero_prices : [0,10,30,50,80,160,250,500,1200,2300,5000],
 	
 	activate : function() {		
 	
 		this.cur_hero = my_data.hero_id;
 		
 		objects.shop_cont.visible = true;
-		objects.shop_player.set_skin_by_prefix(this.heros_list[this.cur_hero]+'_');
-		objects.shop_player.skl_anim_goto_frame(skl_throw,0);
-		some_process.shop = this.process;
+				
+		this.change_player_down(0);				
+		this.change_balance(0);				
+		this.change_spear_down(0);
 		
-		//заполняем актуальную информацию по бонусам
-		this.update_bonuses_info();
+		some_process.shop = this.process;		
+		
 		
 	},
 	
 	update_bonuses_info : function() {
 		
-		objects.freeze_balance.text = my_data.bonuses.freeze;
-		objects.fire_balance.text = my_data.bonuses.fire;
-		objects.lightning_balance.text = my_data.bonuses.lightning;
 		
 	},
 	
-	prv_down : function() {
-		if (this.cur_hero  === 0) return;
-		this.cur_hero--;
-		objects.shop_player.set_skin_by_prefix(this.heros_list[this.cur_hero]+'_');	
+	change_player_down : function(val) {
+		
+		sound.play('click');
+		this.cur_hero+=val;
+		this.cur_hero = Math.min(Math.max(this.cur_hero, 0), 6);
+		objects.shop_player.set_skin_by_prefix(hero_prefixes[this.cur_hero]);	
+		objects.shop_player_title.text = hero_prefixes[this.cur_hero];
+		
+		objects.shop_player_info.text = ['Цена: ','Price: '][LANG] + this.hero_prices[this.cur_hero]+'$';
+		
 	},
-	
-	next_down : function() {
-		if (this.cur_hero  === this.heros_list.length-1) return;
-		this.cur_hero++;
-		objects.shop_player.set_skin_by_prefix(this.heros_list[this.cur_hero]+'_');
-	},
-	
+		
+	change_spear_down : function(val) {
+		sound.play('click');
+		this.cur_spear+=val;		
+		this.cur_spear = Math.min(Math.max(this.cur_spear, 0), 2);
+		const cur_spear_name = this.spears_list[this.cur_spear];
+		objects.shop_spear.texture=gres['projectile_'+cur_spear_name].texture;
+		objects.shop_spear_title.text = cur_spear_name + ' (x' +my_data.bonuses[cur_spear_name]+')';
+		
+		const price = my_data.bonuses[cur_spear_name]*3+10;
+		objects.shop_spear_info.text = ['Цена: ','Price: '][LANG] + price+'$';
+	},	
+		
 	player_buy_down : function() {
-		console.log('player_buy_down');	
+			
+		const price = this.hero_prices[this.cur_hero];			
 		
+		if (my_data.money < price) {
+			sound.play('locked');
+			return;
+		}
 		
+		if (my_data.hero_id === this.cur_hero) {
+			alert('Уже куплено');
+			return;
+		}
+			
+			
+		sound.play('click2');
 		my_data.hero_id = this.cur_hero;
-		objects.shop_player.set_skin_by_prefix(this.heros_list[my_data.hero_id]+'_');
+		objects.shop_player.set_skin_by_prefix(hero_prefixes[my_data.hero_id]);
 		firebase.database().ref("players/"+my_data.uid+"/hero_id").set(my_data.hero_id);
 		
+
+		this.change_balance(-price);
+		
 	},
 	
-	bonus_down : function(bonus) {
-		console.log(bonus);	
-		my_data.bonuses[bonus]++;
-					
-		//заполняем актуальную информацию по бонусам
+	change_balance : function(val) {
+		
+		my_data.money+=val;
+		objects.shop_balance.text = my_data.money + '$';
+		firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);
+		
+	},
+	
+	spear_buy_down : function() {
+		
+		const cur_spear_name = this.spears_list[this.cur_spear];
+		const price = my_data.bonuses[cur_spear_name]*3+10;		
+		
+		if (my_data.money < price) {
+			sound.play('locked');
+			return;
+		}
+		
+		sound.play('click2');
+
+		this.change_balance(-price);
+		my_data.bonuses[cur_spear_name]++;
 		firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
-		this.update_bonuses_info();
+		this.change_spear_down(0);
+		
 	},
 	
 	process : function() {
 		
 		objects.shop_player.skl_anim_tween(skl_prepare,0.5+Math.sin(game_tick)*0.5);
-				
+		objects.shop_spear.rotation+=0.01;
 	},
 	
-	back_down : function() {
+	back_down : function() {		
+
+		if (anim2.any_on()===true || objects.id_cont.visible === true) {
+			sound.play('locked');
+			return
+		};
 		
+		sound.play('click');
 		this.close();
 		main_menu.activate();
 		
@@ -3769,11 +3878,11 @@ cards_menu={
 			this.close_table_dialog();
 
 		//плавно все убираем
-		anim2.add(objects.cards_menu_header,{y:[ objects.cards_menu_header.y, -50]}, false, 0.4,'easeInCubic');
-		anim2.add(objects.cards_cont,{alpha:[1,0]}, false, 0.4,'linear');		
-		anim2.add(objects.back_button,{x:[objects.back_button.sx, 800]}, false, 0.5,'easeInCubic');
+		anim2.add(objects.cards_menu_header,{y:[ objects.cards_menu_header.y, -50]}, false, 0.2,'easeInCubic');
+		anim2.add(objects.cards_cont,{alpha:[1,0]}, false, 0.2,'linear');		
+		anim2.add(objects.back_button,{x:[objects.back_button.sx, 800]}, false, 0.2,'easeInCubic');
 		//anim2.add(objects.desktop,{alpha:[1,0]}, false, 0.4,'linear');
-		await anim2.add(objects.players_online,{y:[objects.players_online.y, 470]}, false, 0.5,'easeInCubic');
+		await anim2.add(objects.players_online,{y:[objects.players_online.y, 470]}, false, 0.2,'easeInCubic');
 
 		//больше ни ждем ответ ни от кого
 		pending_player="";
@@ -4175,7 +4284,7 @@ async function load_resources() {
 	game_res.add('clock',git_src+'sounds/clock.mp3');
 	game_res.add('lightning',git_src+'sounds/lightning.mp3');
 	game_res.add('flame',git_src+'sounds/flame.mp3');
-	game_res.add('confirm_dialog',git_src+'sounds/confirm_dialog.mp3');
+	game_res.add('click2',git_src+'sounds/click2.mp3');
 	game_res.add('move',git_src+'sounds/move.mp3');
 	game_res.add('freezed',git_src+'sounds/freezed.mp3');
 	game_res.add('throw',git_src+'sounds/throw.mp3');
@@ -4184,7 +4293,8 @@ async function load_resources() {
 	game_res.add('hit_head',git_src+'sounds/hit_head.mp3');
 	game_res.add('dialog',git_src+'sounds/dialog.mp3');
 	game_res.add('hit_body',git_src+'sounds/hit_body.mp3');
-	game_res.add('keypress',git_src+'sounds/keypress.mp3');
+	game_res.add('victory',git_src+'sounds/victory.mp3');
+	game_res.add('rain',git_src+'sounds/rain.mp3');
 	
     //добавляем из листа загрузки
     for (var i = 0; i < load_list.length; i++) {
