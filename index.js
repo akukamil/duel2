@@ -1650,8 +1650,7 @@ awaiter = {
 			}			
 		}		
 	},
-	
-	
+		
 	process : function() {
 		
 		for (let i=0;i<3;i++) {		
@@ -1663,34 +1662,6 @@ awaiter = {
 			}			
 		}	
 	}
-	
-}
-
-func_scheduler = {
-	
-	slots : [null,null,null,null,null],
-	
-	add : function(func , time) {	
-
-		
-		for (let i=0;i<5;i++) {
-			if (this.slots[i] === null) {
-				this.slots[i] = {func : func , time : time, start_time : game_tick}
-				return;
-			}			
-		}		
-	},
-	
-	process : function() {		
-		for (let i=0;i<5;i++) {		
-			if (this.slots[i] !== null) {
-				if (game_tick - this.slots[i].start_time > this.slots[i].time) {
-					this.slots[i].func();					
-					this.slots[i]=null;
-				}				
-			}			
-		}		
-	}	
 	
 }
 
@@ -1826,7 +1797,6 @@ game = {
 		//map_id = 4;
 		var map_loader = new PIXI.Loader();	
 		map_loader.add("map_load_list", "map"+map_id+"/map_load_list.txt",{timeout: 5000});
-		map_loader.add("map_col_data", "map"+map_id+"/collisions.txt",{timeout: 5000});
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
 		const map_data = eval(map_loader.resources.map_load_list.data);
@@ -1954,8 +1924,6 @@ game = {
 			objects.game_cont.scale_y = 0.8;
 			this.scene_dir = -1;
 		}
-						
-		console.log('target_platform_name',this.target_platform_name)
 		
 		my_player.init(hero_prefixes[my_data.hero_id]);
 		this.load_and_init_opponent();
@@ -4910,28 +4878,38 @@ async function init_game_env(env) {
 	
 }
 
+
+var now, then=Date.now(), elapsed;
+
 function main_loop() {
+	
+	
+	now = Date.now();
+	elapsed = now-then;
+	
+    if (elapsed > 16.666666) {
 
+        then = now - (elapsed % 16.666666);
 
-	game_tick+=0.016666666;
-	anim2.process();
-	
-	//обрабатываем минипроцессы
-	for (let key in some_process)
-		some_process[key]();	
-	
-	//обработка отложенных функций
-	func_scheduler.process();
-	
-	blood.process();
-	
-	//обработка кастомных промисов
-	awaiter.process();
-	
+		game_tick+=0.016666666;
+		anim2.process();
+		
+		//обрабатываем минипроцессы
+		for (let key in some_process)
+			some_process[key]();	
+		
+		blood.process();
+		
+		//обработка кастомных промисов
+		awaiter.process();
+
+    }
+
 	//отображаем сцену
-	app.renderer.render(app.stage);	
-	
-	requestAnimationFrame(main_loop);
+	app.renderer.render(app.stage);		
+
+	requestAnimationFrame(main_loop);	
+
 	
 	
 }
