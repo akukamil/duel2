@@ -1,11 +1,11 @@
 var M_WIDTH=800, M_HEIGHT=450;
 var app ={stage:{},renderer:{}}, game_res, game, objects = {}, LANG = 0, state="", game_tick = 0, game_id = 0, connected = 1, client_id =0, h_state = 0, game_platform = "",
 hidden_state_start = 0,room_name = 'states', pending_player = '', my_data={opp_id : ''},
-opp_data={}, some_process = {}, git_src = '', ME = 0, OPP = 1, WIN = 1, DRAW = 0, LOSE = -1, NOSYNC = 2, my_turn = 1, skl_prepare, skl_throw, skl_lose, drag = 0, obj_to_follow = null, my_player = null, opp_player = null, cont_inv = 1;
+opp_data={}, some_process = {}, git_src = '', ME = 0, OPP = 1, WIN = 1, DRAW = 0, LOSE = -1, NOSYNC = 2, my_turn = 1, skl_prepare, skl_throw, skl_lose,skl_die, drag = 0, obj_to_follow = null, my_player = null, opp_player = null, cont_inv = 1;
 
 var col_data=[['head','spine',[[-11,-19],[-1,-25],[9,-21],[12,-12],[9,-4],[0,0]]],['spine','spine',[[-1,-3],[0,29]]],['left_leg1','left_leg1',[[-14,-1],[16,-1]]],['left_leg2','left_leg2',[[-13,-3],[14,-3]]],['right_leg1','right_leg1',[[-14,-1],[16,-1]]],['right_leg2','right_leg2',[[13,2],[-13,2]]],['left_arm1','left_arm1',[[14,0],[-13,0]]],['left_arm2','left_arm2',[[-12,-1],[14,-1]]],['right_arm1','right_arm1',[[-15,0],[12,0]]],['right_arm2','right_arm2',[[-14,0],[12,0]]]];
 const hero_prefixes = ['s0','gl','bs','ff','sm','bm','ca'];
-var map_col_data=[];
+const hero_vs_life = {'s0':400,'gl':500,'bs':600,'ff':700,'sm':800,'bm':900,'ca':1000};
 
 irnd = function(min,max) {	
     min = Math.ceil(min);
@@ -17,6 +17,12 @@ rnd2= function(min,max) {
 	let r=Math.random() * (max - min) + min
 	return Math.round(r * 100) / 100
 };
+
+r2 = (v)=>{
+	
+	return (v >= 0 || -1) * Math.round(Math.abs(v)*1000)/1000;
+	
+}
 
 dist = function(x0,y0,x1,y1) {	
 	const dx = x0 - x1;
@@ -243,6 +249,7 @@ class player_class extends PIXI.Container{
 		this.base_col=JSON.parse(JSON.stringify(col_data));		
 		this.coll_data=JSON.parse(JSON.stringify(col_data));	
 				
+		this.base_life_level=1000;		
 		this.life_level=1000;
 		this.life_protection=1;
 
@@ -313,13 +320,17 @@ class player_class extends PIXI.Container{
 					
 	decrease_life(val) {	
 		
+		if (this.life_level === 0)
+			return;
 		
 		let new_lev=this.life_level-val*this.life_protection;
 		new_lev=~~Math.max(0,new_lev);	
 		this.life_level=new_lev;
 		this.life_level_front.scale_x=this.life_level_base_scale*this.life_level*0.001;
 		
-		if (new_lev === 0) {					
+		if (new_lev === 0) {	
+			sound.play('hit_dead');
+			this.play_anim(skl_die);
 			if (this === my_player)
 				game.close('my_lose');			
 			else
@@ -331,7 +342,7 @@ class player_class extends PIXI.Container{
 		
 					
 		this.frozen=1;
-		this.set_skin_by_prefix('s1_');			
+		this.set_skin_by_prefix('s1');			
 		/*this.frozen_start=game_tick;	
 				
 		if (this.name==='player') {
@@ -422,7 +433,9 @@ class player_class extends PIXI.Container{
 		this.skl_anim_goto_frame(skl_throw,0);
 				
 		//устанавливаем начальные значения сил
-		this.set_life(1000);
+		
+
+		this.set_life(hero_vs_life[skin_prefix]);
 		//this.powers.block=skins_powers[this.skin_id][1];
 		//this.powers.freeze=skins_powers[this.skin_id][2];
 		//this.powers.fire=skins_powers[this.skin_id][3];
@@ -430,7 +443,7 @@ class player_class extends PIXI.Container{
 	}
 	
 	set_life(val) {		
-		this.life_level=val;
+		this.base_life_level=this.life_level=val;
 		this.life_level_front.scale_x=this.life_level_base_scale*this.life_level*0.001;
 	}
 
@@ -486,8 +499,6 @@ class projectile_class extends PIXI.Container {
 			this.p_bcg.texture=gres.projectile_lightning.texture;		
 		if (params.power === 'none')
 			this.p_bcg.texture=gres.zz_projectile.texture;
-					
-		
 
 					
 		this.hit_callback = params.hit_callback;
@@ -502,16 +513,17 @@ class projectile_class extends PIXI.Container {
 		this.target = params.target;
 		
 		if (objects.game_cont.scale_x < 0) {			
-			anim2.add(objects.game_cont,{scale_x:[-1,-0.75],scale_y:[1,0.75]}, true, 7,'ease2back');
+			anim2.add(objects.game_cont,{scale_x:[-0.8,-0.55],scale_y:[0.8,0.55]}, true, 7,'ease2back');
 		} else {
-			anim2.add(objects.game_cont,{scale_xy:[1,0.75]}, true, 7,'ease2back');	
+			anim2.add(objects.game_cont,{scale_xy:[0.8,0.55]}, true, 7,'ease2back');	
 		}
+		
 
 		if (this.target.name === "player1") {
 			
 			this.vx0=-this.vx0;				
 			this.x0 = objects.player2.x-20;
-			this.y0 = objects.player2.y+50;
+			this.y0 = objects.player2.y+70;
 			this.scale.x=1;
 			
 		} else {
@@ -520,7 +532,7 @@ class projectile_class extends PIXI.Container {
 			let dxv=Math.sin(objects.player1.spine.rotation);
 			let dyv=-Math.cos(objects.player1.spine.rotation);			
 			this.x0 = objects.player1.x+20;
-			this.y0 = objects.player1.y+50;
+			this.y0 = objects.player1.y+70;
 			this.scale.x=-1;
 		}
 		
@@ -609,7 +621,7 @@ class projectile_class extends PIXI.Container {
 			
 			let l = this.get_line();	
 		
-			//проверяем столкновение с  частями тела игрока или оппонента
+			//проверяем столкновение с  частями тела игрока или оппонента			
 			for (let i=0;i<this.target.coll_data.length;i++) {
 				
 				let limb_name=this.target.coll_data[i][0];
@@ -642,22 +654,25 @@ class projectile_class extends PIXI.Container {
 					}						
 				}					
 			}	
+						
+			
 			
 			//проверяем столкновения с другими статичными объектами
-			for (let i=0;i<map_col_data.length;i++) {
+			for (let obj of game.map_col_objects) {
 				
-				const obj = map_col_data[i];
+				if (obj.visible === false) continue;
 				
-				for (let j = 0 ; j <obj.length -1 ; j++) {					
+				const coll = obj.coll_data;						
+				for (let j = 0 ; j <coll.length -1 ; j++) {					
 					
-					let p0 = obj[j];
-					let p1 = obj[j+1];
+					let p0 = coll[j];
+					let p1 = coll[j+1];
 					
 					let res = this.get_line_intersection(l[0], l[1], l[2], l[3], p0[0], p0[1], p1[0], p1[1]);
 					if (res[0] !== -999 && this.on===1) {
 						
 						//сообщаем в коллбэк информацию об ударе
-						this.hit_callback({hit_type : 'wall', power : this.power});
+						this.hit_callback({hit_type : 'wall', power : this.power, wall : obj.name});
 						
 						//корректируем копье чтобы оно не заходило далеко
 						let proj_half_len = dist(l[0], l[1], l[2], l[3]);
@@ -674,11 +689,31 @@ class projectile_class extends PIXI.Container {
 						this.stop_on_block();
 						
 						return;
-					}										
-					
-				}
+					}		
+				}				
+			}			
+			
+			//проверяем столкновение с бонусами
+			for (let obj of game.map_bonus_objects) {
 				
-			}
+				if (obj.visible === false || obj.ready === false) continue;
+				
+				const coll = obj.coll_data;						
+				for (let j = 0 ; j <coll.length -1 ; j++) {					
+					
+					let p0 = coll[j];
+					let p1 = coll[j+1];
+					
+					let res = this.get_line_intersection(l[0], l[1], l[2], l[3], p0[0], p0[1], p1[0], p1[1]);
+					if (res[0] !== -999 && this.on===1) {
+
+						//добавляем бонусы только если это я пустил копье
+						if (this.target === opp_player)
+							power_buttons.add_bonus(obj.bonus, obj.amount);
+						anim2.add(obj,{alpha:[1,0]}, false, 0.25,'linear');
+					}		
+				}				
+			}	
 			
 		}	
 
@@ -1209,11 +1244,12 @@ mp_game = {
 	start_time : 0,
 	disconnect_time : 0,
 	me_conf_play : 0,
-	opp_conf_play : 0,
 	made_moves: 0,
+	timer_paused : false,
 	my_role : '',
 	timer_id : 0,
 	time_left : 0,
+	opp_conf_play : false,
 			
 	activate : async function () {
 		
@@ -1225,33 +1261,69 @@ mp_game = {
 		//устанавливаем локальный и удаленный статус
 		set_state({state : 'p'});	
 		
-		
+		this.opp_conf_play = false;
+				
 		//таймер
 		objects.timer_cont.visible = true;
 		this.switch_timer();
+		this.timer_tick();		
 		
-		
+		//устанаваем проигрышный рейтинг
+		let lose_rating = this.calc_new_rating(my_data.rating, LOSE);
+		if (lose_rating >100 && lose_rating<9999)
+			firebase.database().ref("players/"+my_data.uid+"/rating").set(lose_rating);
 				
 	},
 	
+	calc_new_rating : function (old_rating, game_result) {		
+		
+		if (game_result === NOSYNC)
+			return old_rating;
+		
+		var Ea = 1 / (1 + Math.pow(10, ((opp_data.rating-my_data.rating)/400)));
+		if (game_result === WIN)
+			return Math.round(my_data.rating + 16 * (1 - Ea));
+		if (game_result === DRAW)
+			return Math.round(my_data.rating + 16 * (0.5 - Ea));
+		if (game_result === LOSE)
+			return Math.round(my_data.rating + 16 * (0 - Ea));
+		
+	},
+	
 	switch_timer : function() {
-		return
+		
+		this.timer_paused=false;
 		this.time_left = 20
 		objects.timer_text.text = this.time_left;
 		if (my_turn === 1)
-			objects.timer_cont.x = 50;
+			objects.timer_cont.x = 150;
 		else
-			objects.timer_cont.x = 750;
-		this.timer_id = setTimeout(this.timer_tick.bind(this),1000);
+			objects.timer_cont.x = 650;
 	},
-	
+
 	pause_timer : function() {
 		
-		clearTimeout(this.timer_id)
+		this.timer_paused = true;
 		
 	},
 		
 	timer_tick : function() {
+		
+		
+		this.timer_id = setTimeout(this.timer_tick.bind(this),1000);		
+		
+		//проверка долгого переключения вкладки				
+		if (document.hidden === true) {
+			const sec_passed = (Date.now() - hidden_state_start)/1000;	
+			if (sec_passed > 3)
+				game.close('no_focus');
+		}				
+		
+		
+		
+		//остальное пропускаем на паузе
+		if (this.timer_paused === true)
+			return;		
 		
 		this.time_left--;
 		objects.timer_text.text = this.time_left;
@@ -1261,11 +1333,11 @@ mp_game = {
 		
 		if (my_turn === 0 && this.time_left === -3)
 			game.close('opp_no_time')
+						
 		
-		this.timer_id = setTimeout(this.timer_tick.bind(this),1000);
 				
 	},
-	
+			
 	send_move(move_data) {
 		
 		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"MOVE",tm:Date.now(),move_data:move_data});	
@@ -1273,6 +1345,8 @@ mp_game = {
 	},	
 	
 	incoming_move : function(move_data) {
+		
+		this.opp_conf_play = true;
 		
 		//дополняем информацией
 		opp_player.set_projectile_power(move_data.power);	
@@ -1316,11 +1390,56 @@ mp_game = {
 		message.add(data, 10000);
 		
 	},
-	
-	close : function() {
 		
+	close : function(result) {
+						
+		clearTimeout(this.hidden_timer_tick)
 		clearTimeout(this.timer_id)
 		objects.timer_cont.visible = false;
+		
+		//если я отменил игру то сообщаем об этом сопернику
+		if (result === 'my_cancel')
+			firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"MY_CANCEL",tm:Date.now()});
+		
+		if (this.opp_conf_play === false && result === 'opp_no_time')
+			result = 'no_sync';
+		
+		if (result === 'my_win' || result === 'opp_no_time' || result === 'opp_cancel')
+			sound.play('victory');
+		
+		if (result === 'opp_win' || result === 'my_no_time' || result === 'my_cancel' || result === 'no_focus')
+			sound.play('lose');		
+		
+		
+		const res_array = [
+			['my_cancel',LOSE, ['Вы проиграли!\nВы отменили игру','You lose!\nYou canceled the game']],
+			['no_sync',NOSYNC , ['Похоже соперник не смог начать игру','It looks like the opponent could not start the game']],
+			['my_win' ,WIN, ['Вы Выиграли!','You win!']],
+			['my_lose' ,LOSE, ['Вы проиграли!','You lose!']],
+			['opp_no_time' ,WIN , ['Вы выиграли!\nУ соперника закончилось время','You win!\nOpponent out of time']],
+			['opp_cancel',WIN, ['Вы выиграли!\nСоперник сдался','You win!\nOpponent gave up!']],
+			['opp_win',LOSE , ['Вы проиграли!','You lose!']],
+			['my_no_time',LOSE, ['Вы проиграли!\nУ вас закончилось время','You lose!\nYou out of time']],
+			['my_cancel',LOSE , ['Вы сдались!','You gave up!']],
+			['no_focus',LOSE , ['Потеряна связь!\nИспользуйте надежное интернет соединение.','Lost connection!\nUse a reliable internet connection']]
+		];
+		
+		const result_row = res_array.find( p => p[0] === result);
+		const result_str = result_row[0];		
+		const result_number = result_row[1];
+		const result_info = result_row[2][LANG];
+		
+		const old_rating = my_data.rating;
+		my_data.rating = this.calc_new_rating (my_data.rating, result_number);
+		firebase.database().ref("players/"+my_data.uid+"/rating").set(my_data.rating);
+		
+		const rating_info = ['Рейтинг: ','Rating: '][LANG] + old_rating + ' >>> ' + my_data.rating;
+		
+		//обновляем даные на карточке
+		objects.my_card_rating.text=my_data.rating;
+				
+		return [result_info,rating_info];
+		
 	}
 	
 }
@@ -1333,8 +1452,17 @@ sp_game = {
 	center_size : 0,
 	true_rating : null,
 	receive_move_time : 0,
+	bots_data:[ //взято из эксель файла
+		[[0.90,0.95,1.00],0.20],
+		[[0.88,0.94,1.00],0.17],
+		[[0.86,0.93,1.00],0.14],
+		[[0.84,0.92,1.00],0.11],
+		[[0.82,0.91,1.00],0.08],
+		[[0.80,0.90,1.00],0.05],
+		[[0.78,0.89,1.00],0.02]
+	],
 		
-	activate: async function(role, seed) {
+	activate: async function() {
 		
 		//сохраняем рейтинг
 		this.true_rating = my_data.rating;
@@ -1373,54 +1501,10 @@ sp_game = {
 		
 	},
 		
-	calc_next_fire2 : function(v0) {
-
-		//****вычисляет необходимой угол копья в зависимости от силы отправки
-		
-		let x0 = opp_player.x-20;
-		let y0 = opp_player.y+50;
-
-		let x1 = my_player.x+60;
-		let y1 = my_player.y+70;
-		
-		let dx=x0-x1;
-		let dh=y1-y0;
-		
-		//решение уравнения взято отсюда https://www.youtube.com/watch?v=32PiZDW40VI
-		let R=dx/v0; R=R*R*4.9;
-		let a=R;
-		let b=dx;
-		let c=R-dh;
-		let D=b * b - (4 * a * c);
-		
-		let Q1=0, Q2=0;
-		
-		if (D>0){			
-			let root = Math.sqrt(D);			
-			let tanQ1 = (-b - root) / (2 * a);	
-			let tanQ2 = (-b + root) / (2 * a);	
-			Q1=Math.atan(tanQ1);
-			Q2=Math.atan(tanQ2);
-		} 
-		
-		if (D===0) {
-			let root = Math.sqrt(D);			
-			let tanQ1 = (-b - root) / (2 * a);	
-			Q1=Math.atan(tanQ1);
-		}
-
-		if (D<0) {
-			Q1=-Math.random()
-		}
-		
-		console.log(v0,Q1,Q2)
-		return Q1;		
-	},
-		
 	calc_v0_for_Q : function(del_q) {
 
 		let x0 = opp_player.x-20;
-		let y0 = opp_player.y+50;
+		let y0 = opp_player.y+70;
 
 		let x1 = my_player.x+60;
 		let y1 = my_player.y+70;
@@ -1449,16 +1533,37 @@ sp_game = {
 				
 		//запускаем снаряд бота
 		[Q,P] = this.calc_v0_for_Q(rnd2(0.4,0.8));
-		const move_data = {	Q : Q,
+		
+		let power = 'none';
+		const power_prob = this.bots_data[my_data.bot_level][0];
+		const random_prob = Math.random();		
+		if (random_prob > power_prob[0] && random_prob <= power_prob[1])
+			power = 'freeze'
+		if (random_prob > power_prob[1] && random_prob <= power_prob[2])
+			power = 'fire'
+		if (random_prob > power_prob[2] && random_prob <= power_prob[3])
+			power = 'lightning'
+		
+		const max_dev_ang = this.bots_data[my_data.bot_level][1]
+		const dev_ang = rnd2(-max_dev_ang,max_dev_ang);
+		
+		opp_player.set_projectile_power(power);	
+		
+		const move_data = {	Q : Q+dev_ang,
 							P : P,
 							spear : opp_player.projectile_2.texture,
 							source : opp_player,
 							target : my_player,
-							power : 'none',
+							power : power,
 							hit_callback : game.incoming_move_finished.bind(game)							
 							};
 		console.log(Q,P)
 		game.start_move (move_data);		
+		
+	},
+
+	long_no_focus : function() {
+		
 		
 	},
 
@@ -1467,9 +1572,44 @@ sp_game = {
 		
 	},
 					
-	close : async function() {		
+	close : function(result) {		
 		
 		this.on = 0;	
+		if (result === 'my_win') {
+			my_data.bot_level++;
+			my_data.bot_level=Math.min(my_data.bot_level, hero_prefixes.length-1);
+			firebase.database().ref("players/"+my_data.uid+"/bot_level").set(my_data.bot_level);
+		}	
+		
+	
+		
+		const res_array = [
+			['my_cancel',LOSE, ['Вы проиграли!\nВы отменили игру','You lose!\nYou canceled the game']],
+			['no_sync',NOSYNC , ['Похоже соперник не смог начать игру','It looks like the opponent could not start the game']],
+			['my_win' ,WIN, ['Вы Выиграли!','You win!']],
+			['my_lose' ,LOSE, ['Вы проиграли!','You lose!']],
+			['opp_no_time' ,WIN , ['Вы выиграли!\nУ соперника закончилось время','You win!\nOpponent out of time']],
+			['opp_cancel',WIN, ['Вы выиграли!\nСоперник сдался','You win!\nOpponent gave up!']],
+			['opp_win',LOSE , ['Вы проиграли!','You lose!']],
+			['my_no_time',LOSE, ['Вы проиграли!\nУ вас закончилось время','You lose!\nYou out of time']],
+			['my_cancel',LOSE , ['Вы сдались!','You gave up!']],
+			['switch',DRAW , ['switch!','switch!']],
+			['no_focus',LOSE , ['Потеряна связь!\nИспользуйте надежное интернет соединение.','Lost connection!\nUse a reliable internet connection']]
+		];
+		
+		const result_row = res_array.find( p => p[0] === result);
+		const result_str = result_row[0];		
+		const result_number = result_row[1];
+		const result_info = result_row[2][LANG];
+		
+		
+		if (result_number === WIN)
+			sound.play('victory');
+		
+		if (result_number === LOSE)
+			sound.play('lose');			
+		
+		return [result_info,'--)))--'];
 		
 	},
 	
@@ -1477,7 +1617,7 @@ sp_game = {
 		
 		awaiter.kill_all();
 		objects.fire.visible = false;
-		this.close();	
+		this.close('switch');	
 		
 	}
 
@@ -1590,6 +1730,14 @@ power_buttons = {
 		
 	},
 	
+	add_bonus : function(bonus, amount) {
+		
+		sound.play('click2');
+		my_data.bonuses[bonus]+=amount;
+		firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
+		this.update_info();
+	},
+	
 	process: function() {
 		
 
@@ -1597,7 +1745,8 @@ power_buttons = {
 	
 	bonus_fired : function(bonus) {
 		
-		my_data.bonuses[bonus]--;			
+		my_data.bonuses[bonus]--;	
+		firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
 		this.update_info();
 		
 		//если больше не осталось бонус копий
@@ -1640,9 +1789,13 @@ game = {
 	start_player : 0,
 	start_time : 0,
 	parallax_data : {},
-	on : 0,
+	on : 0,	
+	my_platform_name : '',
+	opp_platform_name : '',
 	opponent : {},
-	map_data : {},
+	scene_dir : 1,
+	map_col_objects : [],
+	map_bonus_objects : [],
 	
 	add_fire : function(player) {
 		
@@ -1662,56 +1815,62 @@ game = {
 	
 	activate : async function(start_player, opponent, map_id){
 				
-		//убираем объекты так как они могли остаться от предыдущих игр
-		objects.map_object2.visible=false;
-		objects.map_object3.visible=false;
+
+		//фиксируем объекты которые должны проверятся на коллизии и выключаем их видимость
+		this.map_col_objects = [objects.platform1,objects.platform2,objects.s_obj0,objects.s_obj1,objects.s_obj2];
+		this.map_bonus_objects = [objects.bonus0,objects.bonus1,objects.bonus2];
+		[...this.map_col_objects, ...this.map_bonus_objects].forEach(o=>o.visible=false);
 		
+	
 		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
-		//map_id = 3;
+		//map_id = 4;
 		var map_loader = new PIXI.Loader();	
 		map_loader.add("map_load_list", "map"+map_id+"/map_load_list.txt",{timeout: 5000});
 		map_loader.add("map_col_data", "map"+map_id+"/collisions.txt",{timeout: 5000});
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
-		this.map_data = eval(map_loader.resources.map_load_list.data);
-		map_col_data = eval(map_loader.resources.map_col_data.data);
+		const map_data = eval(map_loader.resources.map_load_list.data);
 		
 		//добавляем из листа загрузки карты
-		for (var i = 0; i < this.map_data.length; i++)
-			if (this.map_data[i].class === "sprite" || this.map_data[i].class === "image" )
-				map_loader.add(this.map_data[i].name, git_src+'map'+map_id+'/' + this.map_data[i].name + "." +  this.map_data[i].image_format);
+		for (var i = 0; i < map_data.length; i++)
+			if (map_data[i].class === "sprite" || map_data[i].class === "image" )
+				map_loader.add(map_data[i].name, git_src+'map'+map_id+'/' + map_data[i].name + "." +  map_data[i].image_format);
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
 		
 		//устанаваем объекты сцены
-		for (var i = 0; i < this.map_data.length; i++) {
-			const obj_class = this.map_data[i].class;
-			const obj_name = this.map_data[i].name;
+		for (var i = 0; i < map_data.length; i++) {
+			const obj_class = map_data[i].class;
+			const obj_name = map_data[i].name;
 			console.log('Processing: ' + obj_name)
 
 			switch (obj_class) {
 			case "sprite":
 				objects[obj_name].texture = map_loader.resources[obj_name].texture;
-				eval(this.map_data[i].code0);
+				eval(map_data[i].code0);
 				break;
 
 			case "block":
-				eval(this.map_data[i].code0);
+				eval(map_data[i].code0);
 				break;
 
 			}
 		}
+		
 		
 		//устанаваем фон 
 		objects.desktop.visible = true;
 		objects.desktop.texture = map_loader.resources.bcg.texture;
 		anim2.add(objects.desktop,{alpha:[0,1]}, true, 0.4,'linear');
 		anim2.add(objects.game_cont,{alpha:[0,1]}, true, 0.4,'linear');
+		
 
 		objects.parallax.visible = true;
 		objects.parallax.texture = map_loader.resources.parallax.texture;
 		objects.parallax.scale_xy = 0.85;
 
+		if (my_data.rating === 1400)
+			this.show_tutorial();
 		
 		this.on = 1;
 		this.opponent = opponent;
@@ -1727,9 +1886,11 @@ game = {
 		if (objects.lb_1_cont.visible===true)
 			lb.close();		
 		
-		//выключаем бота соперника если он работает
-		sp_game.switch_close();
+		if (objects.shop_cont.visible===true)
+			shop.close();	
 		
+		//выключаем бота соперника если он работает
+		sp_game.switch_close();		
 		
 		anim2.add(objects.sbg_button,{x:[850,objects.sbg_button.sx]}, true, 0.6,'easeOutBack');	
 		
@@ -1767,18 +1928,39 @@ game = {
 
 
 		objects.desktop.interactive = true;
-		my_player = [objects.player1, objects.player2][start_player];
-		opp_player = [objects.player1, objects.player2][1 - start_player];
+		
+		if (start_player === ME) {
+			
+			my_player = objects.player1;
+			opp_player = objects.player2;
+			
+			this.my_platform_name = 'platform1';
+			this.opp_platform_name = 'platform2';
+			
+			obj_to_follow = my_player;
+			objects.game_cont.scale_x = 0.8;
+			objects.game_cont.scale_y = 0.8;
+			this.scene_dir = 1;
+			
+		} else {
+			
+			my_player = objects.player2;
+			opp_player = objects.player1;
+			this.my_platform_name = 'platform2';
+			this.opp_platform_name = 'platform1';
+			
+			obj_to_follow = opp_player;
+			objects.game_cont.scale_x = -0.8;
+			objects.game_cont.scale_y = 0.8;
+			this.scene_dir = -1;
+		}
+						
+		console.log('target_platform_name',this.target_platform_name)
 		
 		my_player.init(hero_prefixes[my_data.hero_id]);
-		opp_player.init('ca_');
-		if (start_player === ME)
-			obj_to_follow = my_player;
-		else
-			obj_to_follow = opp_player;
-				
-		if (start_player === OPP)
-			objects.game_cont.scale_x = -1;
+		this.load_and_init_opponent();
+
+
 		
 		//нарисуем коллизии для отладки
 		/*objects.collision_drawer.visible = true;
@@ -1792,6 +1974,32 @@ game = {
 
 	},
 	
+	show_tutorial : async function() {
+				
+		objects.hand.visible = true;
+		objects.hand.texture = gres.hand.texture;
+		await anim2.add(objects.hand,{x:[250,255],y:[450,150],}, true, 1,'easeInOutCubic');	
+		objects.hand.texture = gres.hand1.texture;
+		await new Promise((resolve, reject) => {setTimeout(resolve, 300);});
+		await anim2.add(objects.hand,{x:[255,150],y:[150,250],}, true, 1,'easeInOutCubic');	
+		objects.hand.texture = gres.hand.texture;
+		await anim2.add(objects.hand,{x:[150,250],y:[250,450],}, false, 0.5,'easeInOutCubic');	
+	},
+		
+	load_and_init_opponent : async function() {
+		
+		if (opp_data.uid === 'BOT') {			
+			opp_player.init(hero_prefixes[my_data.bot_level]);
+			return
+		}
+		
+		//определяем какой герой у соперника
+		const _opp_hero_id = await firebase.database().ref("players/"+opp_data.uid + "/hero_id").once('value');
+		opp_data.hero_id = _opp_hero_id.val() || 0;		
+		opp_player.init(hero_prefixes[opp_data.hero_id]);
+		
+	},	
+		
 	process : function() {
 		
 		let tar_pivot_x;
@@ -1819,11 +2027,14 @@ game = {
 
 			const bcg_dx2 = objects.game_cont.pivot.x - this.parallax_data.scene_cen_x;
 			const bcg_dy2 = objects.game_cont.pivot.y - this.parallax_data.scene_cen_y;
-
-			objects.parallax.x = this.parallax_data.cen_x - bcg_dx2 / 20;
+						
+			objects.parallax.x = this.parallax_data.cen_x - this.scene_dir*bcg_dx2 / 20;
 			objects.parallax.y = this.parallax_data.cen_y - bcg_dy2 / 20;	
 		}
 				
+		this.map_bonus_objects.forEach(b=>{
+			b.rotation=Math.sin(game_tick*3)*0.2;
+		})		
 				
 		//обрабатываем горение
 		if (objects.fire.visible === true && objects.fire.ready === true) {
@@ -1833,7 +2044,7 @@ game = {
 				anim2.add(objects.fire,{alpha:[1,0]}, false, 1,'linear');			
 		}
 	
-		
+
 				
 		objects.projectiles.forEach(p=>p.process());
 	},
@@ -1938,9 +2149,6 @@ game = {
 			
 			if (target_player.frozen === 1)
 				target_player.unfroze();	
-			
-			//немного ждем чтобы показать как воткнулась
-			if (await awaiter.add(1.5)===false) return;					
 
 		}
 		
@@ -1949,8 +2157,35 @@ game = {
 			if (target_player.frozen === 1)
 				target_player.unfroze();	
 		}
-		
+	
+		if (hit_data.power === 'lightning') {	
 
+
+			//проверяем молнию
+			let light_on = false; 
+			if (hit_data.hit_type === 'wall') {
+				if (hit_data.wall === this.my_platform_name && target_player === my_player)
+					light_on = true;	
+				if (hit_data.wall === this.opp_platform_name && target_player === opp_player)
+					light_on = true;
+			}
+			
+			if (hit_data.hit_type === 'body')
+				light_on = true;
+				
+			
+			if (light_on === true) {					
+					blood.attach([target_player.coll_data[1][2][0][0],target_player.coll_data[1][2][0][1],target_player.coll_data[1][2][0],target_player.coll_data[1][2][1]],target_player,1.5);
+					obj_to_follow = target_player;
+					if (await this.show_lightning(target_player) === false)
+						return;						
+			}		
+		}		
+		
+		
+		//немного ждем чтобы показать как воткнулась
+		if (hit_data.hit_type === 'wall') 
+			if (await awaiter.add(1.5)===false) return;		
 		
 		//определяем на кого теперь фокусировать камеру и кто ходит
 		if ((target_player === my_player) === (target_player.frozen===1)){
@@ -1960,14 +2195,9 @@ game = {
 			obj_to_follow = my_player;
 			my_turn = 1;	
 		}
-		
-		if (hit_data.power === 'lightning') {
-			
-			blood.attach([target_player.coll_data[1][2][0][0],target_player.coll_data[1][2][0][1],target_player.coll_data[1][2][0],target_player.coll_data[1][2][1]],target_player,1.5);
-			
-			if (await this.show_lightning(target_player) === false)
-				return;			
-		}		
+				
+		if (this.on === 1)
+			this.opponent.switch_timer();				
 		
 		//немного ждем и передаем ход сопернику (боту)
 		if (my_turn === 0) {			
@@ -1975,8 +2205,7 @@ game = {
 			this.opponent.make_move();
 		}
 		
-		if (this.on === 1)
-			this.opponent.switch_timer();
+
 		
 	},
 		
@@ -2041,14 +2270,6 @@ game = {
 		anim2.add(objects.my_card_cont,{x:[objects.my_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
 		anim2.add(objects.opp_card_cont,{x:[objects.opp_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
 		
-		
-		if (result === 'my_win' || result === 'opp_no_time')
-			sound.play('victory');
-		
-		if (result === 'opp_win' || result === 'my_no_time' || result === 'my_cancel')
-			sound.play('lose');
-		
-		
 		awaiter.kill_all();
 		
 		objects.desktop.interactive = false;
@@ -2056,12 +2277,12 @@ game = {
 		anim2.add(objects.sbg_button,{x:[objects.sbg_button.x,850]}, false, 0.6,'easeInBack');	
 		
 		power_buttons.close();
-		
-		some_process.game = function(){};		
-		this.opponent.close();
+			
+		const res_text = this.opponent.close(result);
 				
-		await big_message.show('Игра окончена', result);
+		await big_message.show(res_text[0], res_text[1]);
 		
+		some_process.game = function(){};	
 		anim2.add(objects.game_cont,{alpha:[1,0]}, false, 0.4,'linear');	
 		objects.parallax.visible = false;
 		objects.fire.visible = false;
@@ -2082,8 +2303,7 @@ start_game = {
 	on : 0,
 	turn : 0,
 	opponent : {},
-	map_data : {},
-	
+	map_data : {},	
 	add_fire : function(player) {
 		
 		if (player.scale_x <0)
@@ -2103,40 +2323,39 @@ start_game = {
 	activate : async function(){
 				
 		//убираем объекты так как они могли остаться от предыдущих игр
-		objects.map_object2.visible=false;
-		objects.map_object3.visible=false;
+		objects.s_obj0.visible=false;
+		objects.s_obj1.visible=false;
 		
 		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
 		map_id = 10;
 		var map_loader = new PIXI.Loader();	
 		map_loader.add("map_load_list", "map"+map_id+"/map_load_list.txt",{timeout: 5000});
-		map_loader.add("map_col_data", "map"+map_id+"/collisions.txt",{timeout: 5000});
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
-		this.map_data = eval(map_loader.resources.map_load_list.data);
-		map_col_data = eval(map_loader.resources.map_col_data.data);
+		const  map_data = eval(map_loader.resources.map_load_list.data);
+
 		
-		//добавляем из листа загрузки карты
-		for (var i = 0; i < this.map_data.length; i++)
-			if (this.map_data[i].class === "sprite" || this.map_data[i].class === "image" )
-				map_loader.add(this.map_data[i].name, git_src+'map'+map_id+'/' + this.map_data[i].name + "." +  this.map_data[i].image_format);
+		//загружаем картинки в соответствии с листом загрузки
+		for (var i = 0; i < map_data.length; i++)
+			if (map_data[i].class === "sprite" || map_data[i].class === "image" )
+				map_loader.add(map_data[i].name, git_src+'map'+map_id+'/' + map_data[i].name + "." +  map_data[i].image_format);
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
 				
 		//устанаваем объекты сцены
-		for (var i = 0; i < this.map_data.length; i++) {
-			const obj_class = this.map_data[i].class;
-			const obj_name = this.map_data[i].name;
+		for (var i = 0; i < map_data.length; i++) {
+			const obj_class = map_data[i].class;
+			const obj_name = map_data[i].name;
 			console.log('Processing: ' + obj_name)
 
 			switch (obj_class) {
 			case "sprite":
 				objects[obj_name].texture = map_loader.resources[obj_name].texture;
-				eval(this.map_data[i].code0);
+				eval(map_data[i].code0);
 				break;
 
 			case "block":
-				eval(this.map_data[i].code0);
+				eval(map_data[i].code0);
 				break;
 
 			}
@@ -2236,8 +2455,6 @@ start_game = {
 			objects.parallax.x = this.parallax_data.cen_x - bcg_dx2 / 20;
 			objects.parallax.y = this.parallax_data.cen_y - bcg_dy2 / 20;	
 		}			
-	
-				
 				
 		//дождь
 		for (let i =0 ; i < objects.rain_drops.length ; i ++) {
@@ -2370,6 +2587,7 @@ touch = {
 	Q:0,
 	moved:0,
 	touch_len:0,
+	w_dev : 0,
 
 	touch_data : {
 		x0: 0,
@@ -2383,15 +2601,17 @@ touch = {
 		this.Q=0;
 		
 		if (my_turn === 0) return;
-		
-		objects.guide_line.clear();
-		objects.guide_line.visible = true;
-		
+				
         this.touch_data.x0 = e.data.global.x / app.stage.scale.x;
         this.touch_data.y0 = e.data.global.y / app.stage.scale.y;
 
         this.touch_data.x1 = this.touch_data.x0;
         this.touch_data.y1 = this.touch_data.y0;		
+	
+	
+	
+	
+		
 	
         drag = 1;
     },
@@ -2402,11 +2622,14 @@ touch = {
 
         if (drag === 1) {
 			
+			if (objects.guide_line.visible===false)
+				objects.guide_line.visible=true;
+			
             this.touch_data.x1 = e.data.global.x / app.stage.scale.x;
             this.touch_data.y1 = e.data.global.y / app.stage.scale.y;
             
-			let dx = this.touch_data.x1 - this.touch_data.x0;
-			let dy = this.touch_data.y1 - this.touch_data.y0;
+			let dx = this.touch_data.x0 - this.touch_data.x1;
+			let dy = this.touch_data.y0 - this.touch_data.y1;
 
 			this.touch_len = Math.sqrt(dx * dx + dy * dy);
 			this.touch_len = Math.max(50, Math.min(this.touch_len, 300));
@@ -2419,10 +2642,13 @@ touch = {
 			this.touch_data.x1 = this.touch_data.x0 + this.touch_len * Math.cos(this.Q);
 			this.touch_data.y1 = this.touch_data.y0 + this.touch_len * Math.sin(this.Q);
 
-			objects.guide_line.clear();
-			objects.guide_line.lineStyle(1, 0x00ff00)
-			objects.guide_line.moveTo(this.touch_data.x0, this.touch_data.y0);
-			objects.guide_line.lineTo(this.touch_data.x1, this.touch_data.y1);
+
+
+			objects.guide_line_base.width=this.touch_len;
+			objects.guide_line_base.rotation=this.Q;
+			objects.guide_line_tip.x = 400 + Math.cos(this.Q)*this.touch_len;
+			objects.guide_line_tip.y = 225 + Math.sin(this.Q)*this.touch_len;
+			objects.guide_line_tip.rotation=this.Q;
 			
 			
 			//отображаем направляющую в зависимости от наклона тела
@@ -2450,13 +2676,14 @@ touch = {
 		my_turn = 0;		
 		
 		//запускаем локальный снаряд и получаем его ссылку
-		let Q = this.Q;
-		let P = this.touch_len*0.6;
+		let Q = r2(this.Q + this.w_dev);
+		let P = this.touch_len*0.5;
 		
 		//отправляем сопернику
 		game.opponent.send_move({Q:Q, P:P, power:power_buttons.selected_power});		
 		game.opponent.pause_timer();
 		
+		objects.guide_line.visible=false;
 		
 		game.start_move ({
 			Q : Q,
@@ -2474,14 +2701,7 @@ touch = {
 		if (power_buttons.selected_power !== 'none')
 			power_buttons.bonus_fired(power_buttons.selected_power)
 
-    },
-	
-	stop: function() {
-		
-		guide_line.visible = objects.dir_line.visible = objects.power_level_cont.visible = false;
-		drag = 0;
-		
-	}
+    }
 
 }
 
@@ -2662,6 +2882,7 @@ process_new_message=function(msg) {
 		//в данном случае я мастер и хожу вторым
 		opp_data.uid=msg.sender;
 		game_id=msg.game_id;
+		touch.w_dev = msg.w_dev;
 		cards_menu.accepted_invite(msg);
 	}
 
@@ -2684,6 +2905,9 @@ process_new_message=function(msg) {
 			if (msg.message==='MOVE')
 				mp_game.incoming_move(msg.move_data);
 			
+			//получение сообщение с ходом игорка
+			if (msg.message==='MY_CANCEL')
+				game.close('opp_cancel');
 		}
 	}
 
@@ -2721,7 +2945,7 @@ req_dialog = {
 			}	else	{
 
 				//так как успешно получили данные о сопернике то показываем окно
-				sound.play('receive_sticker');
+				sound.play('invite');
 			
 				anim2.add(objects.req_cont,{y:[-260, objects.req_cont.sy]}, true, 0.75,'easeOutElastic');
 
@@ -2792,13 +3016,13 @@ req_dialog = {
 
 		//отправляем информацию о согласии играть с идентификатором игры
 		game_id=~~(Math.random()*999);
-		let fp = irnd(0,1);
-		let map_id = irnd(0,9);
-				
+		const fp = irnd(0,1);
+		const map_id = irnd(0,9);
+		const w_dev = rnd2(-0.05,0.05);
 		
 		
 		//отправляем данные о начальных параметрах игры сопернику
-		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"ACCEPT", tm:Date.now(), game_id : game_id, fp : 1 - fp, map_id : map_id});
+		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"ACCEPT", tm:Date.now(), game_id : game_id, w_dev : w_dev, fp : 1 - fp, map_id : map_id});
 
 		//заполняем карточку оппонента
 		make_text(objects.opp_card_name,opp_data.name,150);
@@ -2809,6 +3033,7 @@ req_dialog = {
 		cards_menu.close();
 		sp_game.switch_close();
 		
+		touch.w_dev = w_dev;
 		game.activate(fp, mp_game, map_id);
 
 	},
@@ -2833,8 +3058,8 @@ main_menu= {
 		sound.play_loop('rain', true)
 		start_game.activate();
 		objects.start_game_cover.visible = true;
-		objects.start_game_cover.alpha = 0.5;
-		objects.start_game_cover.tint = 0x444444;
+		objects.start_game_cover.alpha = objects.start_game_cover.base_alpha;
+		//objects.start_game_cover.tint = 0x444444;
 
 		some_process.main_menu = this.process;
 		anim2.add(objects.mb_cont,{x:[800,objects.mb_cont.sx]}, true, 1,'easeInOutCubic');
@@ -2955,13 +3180,14 @@ shop = {
 	cur_hero : 0,
 	cur_spear : 0,
 	spears_list : ['freeze','fire','lightning'],
-	hero_prices : [0,10,30,50,80,160,250,500,1200,2300,5000],
+	hero_prices : [0,10,30,50,80,120,200,250,300,350,500],
 	
 	activate : function() {		
 	
 		this.cur_hero = my_data.hero_id;
 		
-		objects.shop_cont.visible = true;
+		anim2.add(objects.shop_cont,{x:[-800,objects.shop_cont.sx]}, true, 0.5,'easeOutBack');	
+
 				
 		this.change_player_down(0);				
 		this.change_balance(0);				
@@ -2972,55 +3198,76 @@ shop = {
 		
 	},
 	
-	update_bonuses_info : function() {
+	show_info(info) {
 		
+		objects.shop_info.text = info;
+		objects.shop_info.show_time = game_tick;
+		anim2.add(objects.shop_info,{alpha:[0,1]}, true, 0.5,'linear');	
 		
-	},
+	},	
 	
 	change_player_down : function(val) {
 		
 		sound.play('click');
 		this.cur_hero+=val;
 		this.cur_hero = Math.min(Math.max(this.cur_hero, 0), 6);
+		
+		const hero_names = ['STICKMAN','GREEN LIGHT','BEAST','NARUTO','SPIDER-MAN','BATMAN','CAPTAIN AMERICA'];
+		
 		objects.shop_player.set_skin_by_prefix(hero_prefixes[this.cur_hero]);	
-		objects.shop_player_title.text = hero_prefixes[this.cur_hero];
+		objects.shop_player_title.text = hero_names[this.cur_hero];
 		
 		objects.shop_player_info.text = ['Цена: ','Price: '][LANG] + this.hero_prices[this.cur_hero]+'$';
-		
+		objects.shop_player_info.text += '\n'+['ЖИЗНЬ: ','LIFE: '][LANG] + ~~(hero_vs_life[hero_prefixes[this.cur_hero]]*0.1);
 	},
 		
 	change_spear_down : function(val) {
 		sound.play('click');
+		
 		this.cur_spear+=val;		
 		this.cur_spear = Math.min(Math.max(this.cur_spear, 0), 2);
 		const cur_spear_name = this.spears_list[this.cur_spear];
+		const spear_name_translator = {'freeze':['ФРИЗ','FREEZE'],'fire':['ОГОНЬ','FIRE'],'lightning':['МОЛНИЯ','LIGHTNING']}
+		const spear_info = {
+			'freeze':['замораживает соперника на один ход, наносит дополнительный урон','---------'],
+			'fire':['поджигает соперника, наносит дополнительный урон','-------------'],
+			'lightning':['вызывает молнию, нансоит дополнительный урон, нужно попасть в платформу','------------']
+		};
+		
+		
+		
 		objects.shop_spear.texture=gres['projectile_'+cur_spear_name].texture;
-		objects.shop_spear_title.text = cur_spear_name + ' (x' +my_data.bonuses[cur_spear_name]+')';
+		objects.shop_spear_title.text = spear_name_translator[cur_spear_name][LANG] + ' (x' +my_data.bonuses[cur_spear_name]+')';
 		
 		const price = my_data.bonuses[cur_spear_name]*3+10;
-		objects.shop_spear_info.text = ['Цена: ','Price: '][LANG] + price+'$';
+		objects.shop_spear_price.text = ['Цена: ','Price: '][LANG] + price+'$';
+		objects.shop_spear_info.text =spear_info[cur_spear_name][LANG];
+		
 	},	
 		
 	player_buy_down : function() {
 			
-		const price = this.hero_prices[this.cur_hero];			
+		const price = this.hero_prices[this.cur_hero];	
+
+		if (anim2.any_on()===true)
+			return;
 		
 		if (my_data.money < price) {
+			this.show_info('Недостаточно денег');
 			sound.play('locked');
 			return;
 		}
 		
 		if (my_data.hero_id === this.cur_hero) {
-			alert('Уже куплено');
+			this.show_info('Уже куплено');
 			return;
-		}
+		}			
 			
-			
-		sound.play('click2');
+		sound.play('buy');
 		my_data.hero_id = this.cur_hero;
 		objects.shop_player.set_skin_by_prefix(hero_prefixes[my_data.hero_id]);
 		firebase.database().ref("players/"+my_data.uid+"/hero_id").set(my_data.hero_id);
-		
+		this.show_info('Куплено!!!');
 
 		this.change_balance(-price);
 		
@@ -3036,15 +3283,21 @@ shop = {
 	
 	spear_buy_down : function() {
 		
+		if (anim2.any_on()===true)
+			return;
+		
 		const cur_spear_name = this.spears_list[this.cur_spear];
 		const price = my_data.bonuses[cur_spear_name]*3+10;		
 		
 		if (my_data.money < price) {
+			this.show_info('Недостаточно денег');
 			sound.play('locked');
 			return;
 		}
 		
-		sound.play('click2');
+		this.show_info('Куплено!!!');
+		
+		sound.play('buy');
 
 		this.change_balance(-price);
 		my_data.bonuses[cur_spear_name]++;
@@ -3057,6 +3310,10 @@ shop = {
 		
 		objects.shop_player.skl_anim_tween(skl_prepare,0.5+Math.sin(game_tick)*0.5);
 		objects.shop_spear.rotation+=0.01;
+		
+		if (objects.shop_info.visible===true && objects.shop_info.ready===true)
+			if (game_tick > objects.shop_info.show_time+5) 
+				anim2.add(objects.shop_info,{alpha:[1,0]}, false, 0.5,'linear');	
 	},
 	
 	back_down : function() {		
@@ -3074,7 +3331,7 @@ shop = {
 	
 	close : function() {
 		
-		anim2.add(objects.shop_cont,{alpha:[1,0]}, false, 1,'linear');	
+		anim2.add(objects.shop_cont,{x:[objects.shop_cont.x,-800]}, false, 0.5,'easeInBack');	
 		some_process.shop = function(){};		
 		
 	}	
@@ -3213,7 +3470,7 @@ rules = {
 		anim2.add(objects.rules_back_button,{x:[800, objects.rules_back_button.sx]}, true, 0.5,'easeOutCubic');
 		anim2.add(objects.rules_text,{alpha:[0, 1]}, true, 1,'linear');
 				
-		objects.rules_text.text = ['Добро пожаловать в карточную игру Покер (онлайн дуэль)!\n\nВ игре участвуют 2 игрока. Цель игры - составить лучшую пятикарточную покерную комбинацию из своих и общих карт. В игре несколько раундов, в течении которых игроки делают ставки. После каждого раунда открывается одна или три (на префлопе) карты. Когда все карты открыты, объявляется победитель - тот, у кого сложилась более сильная комбинация карт, и он забирает банк (pot). Также можно выиграть банк если соперник откажется продолжать партию (скинет карты). Выиграть можно также вводя соперника в заблуждение величиной ставок (блеф) и тем самым заставляя его скидывать карты.\n\nУдачной игры!','Welcome to the Poker card game (Heads Up)!\n\n The game involves 2 players. The goal of the game is to make the best five-card poker combination of your own and community cards. There are several rounds in the game, during which players place bets. After each round, one or three (preflop) cards are opened. When all the cards are open, the winner is announced - the one who has a stronger combination of cards, and he takes the pot. You can also win the pot if the opponent refuses to continue the game (throws off the cards). You can also win by misleading your opponent with the amount of bets (bluff) and thereby forcing him to fold his cards.\n\nHave a good game!'][LANG];
+		objects.rules_text.text = ['Добро пожаловать в игру Стикмэны. Битва на копьях (онлайн)!\n\nЦель игры - поразить соперника метким пуском копья. Каждое попадание отнимает часть жизни у игрока, а попадание в голову отнимает у игрока еще большую часть его жизни. Но еще большую часть жизнь можно отнять у соперника, если попасть в него копьем с дополнительной силой (огонь, заморозка, молния). Для начала игры необходимо выбрать соперника, открыв его карточку и нажав кнопку "Пригласить". Если соперник согласится принять ваш вызов, то игра начнется. Метания копий происходят по очереди. Для запуска копья необходимо нажать на центр экрана (мышкой или пальцем), провести пальцем к левому нижнему углу, задавая тем самым силу запуска и отпустить указатель от экрана для пуска. Игровой магазин даст тебе возможность купить более стойкого персонажа или дополнить свой арсенал копьями с дополнительными силами, что увеличит твои шансы на выигрыш.\n\nУдачной игры!',''][LANG];
 	},
 	
 	back_button_down : async function() {
@@ -3785,11 +4042,13 @@ cards_menu={
 		objects.mini_cards[0].bcg.tint=this.state_tint.bot;
 		objects.mini_cards[0].visible=true;
 		objects.mini_cards[0].uid="BOT";
-		objects.mini_cards[0].name=objects.mini_cards[0].name_text.text=['Джокер','Joker'][LANG];
+		objects.mini_cards[0].name=objects.mini_cards[0].name_text.text=['Стикмэн','Stickman'][LANG];
 
 		objects.mini_cards[0].rating=100;		
 		objects.mini_cards[0].rating_text.text = objects.mini_cards[0].rating;
-		objects.mini_cards[0].avatar.texture=game_res.resources.pc_icon.texture;
+		objects.mini_cards[0].avatar.texture=new PIXI.Texture(gres[hero_prefixes[my_data.bot_level]+'_spine'].texture, new PIXI.Rectangle(0, 0, 150, 200));
+		//objects.mini_cards[0].avatar.texture.updateUvs();
+		
 	},
 	
 	card_down : function ( card_id ) {
@@ -3941,7 +4200,7 @@ cards_menu={
 			make_text(objects.opp_card_name,cards_menu._opp_data.name,160);
 			objects.opp_card_rating.text=opp_data.rating;
 			objects.opp_avatar.texture=objects.invite_avatar.texture;			
-			game.activate(ME, sp_game, irnd(0,9));
+			game.activate(ME, sp_game, my_data.bot_level);
 		}
 		else
 		{
@@ -4274,27 +4533,26 @@ async function load_resources() {
 	
 	game_res.add("m2_font", git_src+"fonts/MS_Comic_Sans/font.fnt");
 
-	game_res.add('receive_sticker',git_src+'sounds/receive_sticker.mp3');
-	game_res.add('message',git_src+'sounds/message.mp3');
 	game_res.add('lose',git_src+'sounds/lose.mp3');
 	game_res.add('win',git_src+'sounds/win.mp3');
 	game_res.add('click',git_src+'sounds/click.mp3');
 	game_res.add('close',git_src+'sounds/close.mp3');
 	game_res.add('locked',git_src+'sounds/locked.mp3');
 	game_res.add('clock',git_src+'sounds/clock.mp3');
-	game_res.add('lightning',git_src+'sounds/lightning.mp3');
+	game_res.add('lightning',git_src+'sounds/lightning2.mp3');
 	game_res.add('flame',git_src+'sounds/flame.mp3');
 	game_res.add('click2',git_src+'sounds/click2.mp3');
-	game_res.add('move',git_src+'sounds/move.mp3');
 	game_res.add('freezed',git_src+'sounds/freezed.mp3');
 	game_res.add('throw',git_src+'sounds/throw.mp3');
-	game_res.add('card_open',git_src+'sounds/card_open.mp3');
 	game_res.add('hit_wall',git_src+'sounds/hit_wall.mp3');
 	game_res.add('hit_head',git_src+'sounds/hit_head.mp3');
 	game_res.add('dialog',git_src+'sounds/dialog.mp3');
 	game_res.add('hit_body',git_src+'sounds/hit_body.mp3');
+	game_res.add('hit_dead',git_src+'sounds/hit_dead.mp3');
 	game_res.add('victory',git_src+'sounds/victory.mp3');
 	game_res.add('rain',git_src+'sounds/rain.mp3');
+	game_res.add('buy',git_src+'sounds/buy.mp3');
+	game_res.add('invite',git_src+'sounds/invite.mp3');
 	
     //добавляем из листа загрузки
     for (var i = 0; i < load_list.length; i++) {
@@ -4320,7 +4578,8 @@ async function load_resources() {
 	game_res.add("skl_prepare", git_src+"res/skl_prepare.txt");
 	game_res.add("skl_throw", git_src+"res/skl_throw.txt");
 	game_res.add("skl_lose", git_src+"res/skl_lose.txt");
-
+	game_res.add("skl_die", git_src+"res/skl_die.txt");
+	
 	game_res.onProgress.add(progress);
 	function progress(loader, resource) {
 		document.getElementById("m_bar").style.width =  Math.round(loader.progress)+"%";
@@ -4546,29 +4805,30 @@ async function init_game_env(env) {
 		my_data.rating = 1400;
 	else
 		my_data.rating = other_data.rating;
-	
-	
+		
 	
 	if (other_data===null || isNaN(other_data.hero_id))
 		my_data.hero_id = 0;
 	else
 		my_data.hero_id = other_data.hero_id;
-	
-	
+
 	
 	if (other_data===null || isNaN(other_data.money))
 		my_data.money = 0;
 	else
 		my_data.money = other_data.money;
-	
-	
-	
+
 	
 	if (other_data===null || other_data.bonuses === undefined)
 		my_data.bonuses = {freeze:0, fire:0,lightning:0};
 	else
 		my_data.bonuses = other_data.bonuses;
-	
+
+
+	if (other_data===null || other_data.bot_level === undefined)
+		my_data.bot_level = 0;
+	else
+		my_data.bot_level = other_data.bot_level;
 	
 	
 	//идентификатор клиента
@@ -4622,13 +4882,14 @@ async function init_game_env(env) {
 	skl_lose=JSON.parse(game_res.resources.skl_lose.data);
 	skl_prepare=JSON.parse(game_res.resources.skl_prepare.data);
 	skl_throw=JSON.parse(game_res.resources.skl_throw.data);
-
+	skl_die=JSON.parse(game_res.resources.skl_die.data);
+	
     //подключаем события нажатия на поле
 	objects.desktop.interactive = false;
     objects.desktop.pointerdown = touch.down.bind(touch);
     objects.desktop.pointermove = touch.move.bind(touch);
     objects.desktop.pointerup = touch.up.bind(touch);
-
+    objects.desktop.pointerupoutside = touch.up.bind(touch);
 
 
 	//убираем контейнер
