@@ -196,12 +196,12 @@ function all_players() {
 		let _data = [];
 		for (let i = 0 ; i < uids.length ; i++) {
 					
-			_data.push([uids[i], data[uids[i]].name, data[uids[i]].rating, data[uids[i]].games, data[uids[i]].level, data[uids[i]].tm2, data[uids[i]].tm])		
+			_data.push([uids[i], data[uids[i]].name, data[uids[i]].rating, data[uids[i]].games, data[uids[i]].bot_level, data[uids[i]].tm2, data[uids[i]].tm])		
 			
 		}	
 		
 		//это заголовки
-		let header = ['uid','name','rating','games','level','last_seen','ts'];
+		let header = ['uid','name','rating','games','bot_level','last_seen','ts'];
 
 		my_table.create(_data, header, 'none', 'list');	
 	})
