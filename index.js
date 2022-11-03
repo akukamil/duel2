@@ -4878,7 +4878,6 @@ async function init_game_env(env) {
 	
 }
 
-
 var now, then=Date.now(), elapsed;
 
 function main_loop() {
@@ -4887,9 +4886,9 @@ function main_loop() {
 	now = Date.now();
 	elapsed = now-then;
 	
-    if (elapsed > 16.666666) {
+    if (elapsed > 10) {
 
-        then = now - (elapsed % 16.666666);
+        //then = now - (elapsed % 10);
 
 		game_tick+=0.016666666;
 		anim2.process();
