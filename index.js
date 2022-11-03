@@ -2992,7 +2992,7 @@ req_dialog = {
 		//отправляем информацию о согласии играть с идентификатором игры
 		game_id=~~(Math.random()*999);
 		const fp = irnd(0,1);
-		const map_id = irnd(0,9);
+		const map_id = irnd(0,10);
 		const w_dev = rnd2(-0.05,0.05);
 		
 		
