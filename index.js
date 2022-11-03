@@ -924,8 +924,6 @@ anim2 = {
 		
 	slot: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
 	
-	
-	
 	any_on : function() {
 		
 		for (let s of this.slot)
@@ -1432,11 +1430,22 @@ mp_game = {
 		const result_number = result_row[1];
 		const result_info = result_row[2][LANG];
 		
+
+		
 		const old_rating = my_data.rating;
 		my_data.rating = this.calc_new_rating (my_data.rating, result_number);
 		firebase.database().ref("players/"+my_data.uid+"/rating").set(my_data.rating);
 		
-		const rating_info = ['Рейтинг: ','Rating: '][LANG] + old_rating + ' >>> ' + my_data.rating;
+		let rating_info = ['Рейтинг: ','Rating: '][LANG] + old_rating + ' >>> ' + my_data.rating;
+		
+		//денежный бонус
+		if (result_str ==='my_win' || result_str ==='opp_win') {
+			if (Math.random()>0.6) {				
+				rating_info+='\n+1$';			
+				my_data.money+=1;
+				firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);				
+			}
+		}
 		
 		//обновляем даные на карточке
 		objects.my_card_rating.text=my_data.rating;
@@ -1610,9 +1619,19 @@ sp_game = {
 			sound.play('victory');
 		
 		if (result_number === LOSE)
-			sound.play('lose');			
+			sound.play('lose');		
+
+		//денежный бонус
+		let text_2 = ')))';
+		if (result_str ==='my_win' || result_str ==='opp_win') {
+			if (Math.random()>0.6) {				
+				text_2='+1$';			
+				my_data.money+=1;
+				firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);				
+			}
+		}
 		
-		return [result_info,'--)))--'];
+		return [result_info,text_2];
 		
 	},
 	
@@ -1810,6 +1829,7 @@ game = {
 				map_loader.add(map_data[i].name, git_src+'map'+map_id+'/' + map_data[i].name + "." +  map_data[i].image_format);
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
+		sound.play('start');
 		
 		//устанаваем объекты сцены
 		for (var i = 0; i < map_data.length; i++) {
@@ -1835,6 +1855,7 @@ game = {
 		objects.desktop.visible = true;
 		objects.desktop.texture = map_loader.resources.bcg.texture;
 		anim2.add(objects.desktop,{alpha:[0,1]}, true, 0.4,'linear');
+		console.log('game_start')
 		anim2.add(objects.game_cont,{alpha:[0,1]}, true, 0.4,'linear');
 		
 
@@ -2573,7 +2594,7 @@ touch = {
 		
 		this.Q=0;
 		
-		if (my_turn === 0 || objects.game_cont.alpha !== 1) return;
+		if (my_turn === 0) return;
 				
         this.touch_data.x0 = e.data.global.x / app.stage.scale.x;
         this.touch_data.y0 = e.data.global.y / app.stage.scale.y;
@@ -2637,8 +2658,7 @@ touch = {
     up: function () {
 		
 		if (my_turn === 0 || drag === 0) return;		
-		
-		
+				
         drag = 0;	
 		my_turn = 0;		
 		
@@ -2977,8 +2997,7 @@ req_dialog = {
 
 	accept: function() {
 
-		anim2.kill_anim(objects.game_cont);
-		if (mp_game.on===1 || objects.req_cont.ready===false || objects.req_cont.visible===false || objects.big_message_cont.visible===true || anim2.any_on() === true)
+		if (mp_game.on===1 || objects.req_cont.ready===false || objects.req_cont.visible===false || objects.big_message_cont.visible===true)
 			return;
 
 		//устанавливаем окончательные данные оппонента
@@ -4525,6 +4544,7 @@ async function load_resources() {
 	game_res.add('rain',git_src+'sounds/rain.mp3');
 	game_res.add('buy',git_src+'sounds/buy.mp3');
 	game_res.add('invite',git_src+'sounds/invite.mp3');
+	game_res.add('start',git_src+'sounds/start.mp3');
 	
     //добавляем из листа загрузки
     for (var i = 0; i < load_list.length; i++) {
