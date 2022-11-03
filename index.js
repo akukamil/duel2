@@ -1248,12 +1248,14 @@ mp_game = {
 	timer_paused : false,
 	my_role : '',
 	timer_id : 0,
+	on:0,
 	time_left : 0,
 	opp_conf_play : false,
 			
 	activate : async function () {
 		
 		game.opponent = this;
+		this.on=1;
 					
 		//фиксируем врему начала игры для статистики
 		this.start_time = Date.now();
@@ -1397,6 +1399,7 @@ mp_game = {
 		clearTimeout(this.timer_id)
 		objects.timer_cont.visible = false;
 		
+		this.on=0;
 		//если я отменил игру то сообщаем об этом сопернику
 		if (result === 'my_cancel')
 			firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"MY_CANCEL",tm:Date.now()});
@@ -2570,18 +2573,13 @@ touch = {
 		
 		this.Q=0;
 		
-		if (my_turn === 0) return;
+		if (my_turn === 0 || objects.game_cont.alpha !== 1) return;
 				
         this.touch_data.x0 = e.data.global.x / app.stage.scale.x;
         this.touch_data.y0 = e.data.global.y / app.stage.scale.y;
 
         this.touch_data.x1 = this.touch_data.x0;
         this.touch_data.y1 = this.touch_data.y0;		
-	
-	
-	
-	
-		
 	
         drag = 1;
     },
@@ -2979,11 +2977,10 @@ req_dialog = {
 
 	accept: function() {
 
-
 		anim2.kill_anim(objects.game_cont);
-		if (objects.req_cont.ready===false || objects.req_cont.visible===false || objects.big_message_cont.visible===true || anim2.any_on() === true)
+		if (mp_game.on===1 || objects.req_cont.ready===false || objects.req_cont.visible===false || objects.big_message_cont.visible===true || anim2.any_on() === true)
 			return;
-		
+
 		//устанавливаем окончательные данные оппонента
 		opp_data = req_dialog._opp_data;	
 	
