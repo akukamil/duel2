@@ -4496,8 +4496,11 @@ function set_state(params) {
 
 function vis_change() {
 
-		if (document.hidden === true)		
-			hidden_state_start = Date.now();			
+		if (document.hidden === true) {
+			hidden_state_start = Date.now();				
+			sound.stop('rain');
+		}
+		
 		
 		set_state({hidden : document.hidden});
 		
