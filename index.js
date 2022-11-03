@@ -1794,7 +1794,7 @@ game = {
 		
 	
 		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
-		//map_id = 4;
+		//map_id = 10;
 		var map_loader = new PIXI.Loader();	
 		map_loader.add("map_load_list", "map"+map_id+"/map_load_list.txt",{timeout: 5000});
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
@@ -4497,8 +4497,8 @@ async function load_resources() {
 
 	document.getElementById("m_progress").style.display = 'flex';
 
-	//let git_src="https://akukamil.github.io/duel2/"
-	git_src=""
+	let git_src="https://akukamil.github.io/duel2/"
+	//git_src=""
 
 	//подпапка с ресурсами
 	let lang_pack = ['RUS','ENG'][LANG];
