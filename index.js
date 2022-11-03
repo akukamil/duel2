@@ -2244,6 +2244,8 @@ game = {
 
 		anim2.add(objects.sbg_button,{x:[objects.sbg_button.x,850]}, false, 0.6,'easeInBack');	
 		
+		touch.close();
+		
 		power_buttons.close();
 			
 		const res_text = this.opponent.close(result);
@@ -2638,7 +2640,6 @@ touch = {
 		
 		if (my_turn === 0 || drag === 0) return;		
 		
-        objects.guide_line.visible =  false;
 		
         drag = 0;	
 		my_turn = 0;		
@@ -2669,7 +2670,13 @@ touch = {
 		if (power_buttons.selected_power !== 'none')
 			power_buttons.bonus_fired(power_buttons.selected_power)
 
-    }
+    },
+	
+	close : function() {
+		objects.guide_line.visible=false;
+		drag=0;
+		
+	}
 
 }
 
