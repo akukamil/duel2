@@ -8,6 +8,7 @@ const hero_prefixes = ['s0','gl','bs','ff','sm','bm','ca'];
 const hero_vs_life = {'s0':400,'gl':500,'bs':600,'ff':700,'sm':800,'bm':900,'ca':1000};
 
 irnd = function(min,max) {	
+	//inclusive
     min = Math.ceil(min);
     max = Math.floor(max);
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -2677,7 +2678,7 @@ touch = {
 		
 		//запускаем локальный снаряд и получаем его ссылку
 		let Q = r2(this.Q + this.w_dev);
-		let P = this.touch_len*0.5;
+		let P = this.touch_len*0.6;
 		
 		//отправляем сопернику
 		game.opponent.send_move({Q:Q, P:P, power:power_buttons.selected_power});		
@@ -3021,7 +3022,7 @@ req_dialog = {
 		//отправляем информацию о согласии играть с идентификатором игры
 		game_id=~~(Math.random()*999);
 		const fp = irnd(0,1);
-		const map_id = irnd(0,10);
+		const map_id = irnd(0,11);
 		const w_dev = rnd2(-0.05,0.05);
 		
 		
