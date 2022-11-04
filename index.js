@@ -1272,7 +1272,11 @@ mp_game = {
 		let lose_rating = this.calc_new_rating(my_data.rating, LOSE);
 		if (lose_rating >100 && lose_rating<9999)
 			firebase.database().ref("players/"+my_data.uid+"/rating").set(lose_rating);
-				
+		
+		//бонус кнопки
+		objects.message_button.visible=true;
+		power_buttons.init();
+		
 	},
 	
 	calc_new_rating : function (old_rating, game_result) {		
@@ -1440,7 +1444,7 @@ mp_game = {
 		
 		//денежный бонус
 		if (result_str ==='my_win' || result_str ==='opp_win') {
-			if (Math.random()>0.6) {				
+			if (Math.random()>-0.6) {				
 				rating_info+='\n+1$';			
 				my_data.money+=1;
 				firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);				
@@ -1493,7 +1497,9 @@ sp_game = {
 			
 		this.sp_start = game_tick;
 		
-		
+		//бонус кнопки
+		objects.message_button.visible=false;
+		power_buttons.init();
 
 	},	
 	
@@ -1645,138 +1651,6 @@ sp_game = {
 
 }
 
-awaiter = {
-	
-	slots : [null, null, null],
-	
-	add : function(time) {
-		
-		for (var i=0;i<3;i++) {
-			if (this.slots[i] === null) {
-				this.slots[i] = {resolve : 0 , time : time, start_time : game_tick};		
-				break;
-			}			
-		}		
-		
-		return new Promise(resolve => {			
-			this.slots[i].resolve = resolve;			
-		})
-	},
-	
-	kill_all : function() {
-		
-		for (let i=0;i<3;i++) {		
-			if (this.slots[i] !== null) {
-				this.slots[i].resolve(false);					
-				this.slots[i]=null;
-			}			
-		}		
-	},
-		
-	process : function() {
-		
-		for (let i=0;i<3;i++) {		
-			if (this.slots[i] !== null) {
-				if (game_tick - this.slots[i].start_time > this.slots[i].time) {
-					this.slots[i].resolve(true);					
-					this.slots[i]=null;
-				}				
-			}			
-		}	
-	}
-	
-}
-
-power_buttons = {
-		
-	selected_power: 'none',
-	rem_time:{freeze:0, fire:0,block:0, },
-		
-	down : function(bonus) {
-		
-		
-		
-		
-		if (my_data.bonuses[bonus] === 0) {
-			
-			sound.play('locked');
-			return;
-		}
-
-		
-		if (this.selected_power===bonus) {
-			this.selected_power='none';				
-			my_player.set_projectile_power('none');		
-			objects.upg_button_frame.visible=false;
-		} else {
-			sound.play('click2');
-			this.selected_power=bonus;				
-			my_player.set_projectile_power(bonus);	
-			const button_ref = objects[bonus + '_button'];
-			objects.upg_button_frame.x=button_ref.x;
-			objects.upg_button_frame.y=button_ref.y;
-			objects.upg_button_frame.visible=true;
-		}
-		
-		
-		
-		
-	},
-	
-	add_bonus : function(bonus, amount) {
-		
-		sound.play('click2');
-		my_data.bonuses[bonus]+=amount;
-		firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
-		this.update_info();
-	},
-	
-	process: function() {
-		
-
-	},
-	
-	bonus_fired : function(bonus) {
-		
-		my_data.bonuses[bonus]--;	
-		firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
-		this.update_info();
-		
-		//если больше не осталось бонус копий
-		if (my_data.bonuses[bonus] === 0) {			
-			this.selected_power='none';			
-			objects.upg_button_frame.visible=false;	
-			my_player.set_projectile_power('none');				
-		}
-
-		
-		
-	},	
-
-	update_info : function() {
-		
-		objects.freeze_text.text=my_data.bonuses.freeze;
-		objects.fire_text.text=my_data.bonuses.fire;
-		objects.lightning_text.text=my_data.bonuses.lightning;
-		
-	},
-	
-	init: function () {
-		
-		
-		anim2.add(objects.power_buttons_cont,{y:[450,objects.power_buttons_cont.sy]}, true, 1,'linear');	
-		
-		this.update_info();
-	},
-	
-	close : function() {
-		anim2.kill_anim(objects.power_buttons_cont);
-		anim2.add(objects.power_buttons_cont,{y:[objects.power_buttons_cont.y,450]}, false, 1,'linear');	
-		
-	}
-	
-}
-
 game = {	
 
 	start_player : 0,
@@ -1809,6 +1683,9 @@ game = {
 	activate : async function(start_player, opponent, map_id){
 				
 
+		
+		objects.loading_info.visible=true;
+		
 		//фиксируем объекты которые должны проверятся на коллизии и выключаем их видимость
 		this.map_col_objects = [objects.platform1,objects.platform2,objects.s_obj0,objects.s_obj1,objects.s_obj2];
 		this.map_bonus_objects = [objects.bonus0,objects.bonus1,objects.bonus2];
@@ -1829,6 +1706,7 @@ game = {
 				map_loader.add(map_data[i].name, git_src+'map'+map_id+'/' + map_data[i].name + "." +  map_data[i].image_format);
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
+		objects.loading_info.visible=false;
 		sound.play('start');
 		
 		//устанаваем объекты сцены
@@ -1897,8 +1775,7 @@ game = {
 			p.visible = false;
 		})
 		
-		//бонус кнопки
-		power_buttons.init();
+
 		
 		//показыаем карточки
 		anim2.add(objects.my_card_cont,{x:[-100,objects.my_card_cont.sx]}, true, 0.6,'easeOutBack');	
@@ -2258,6 +2135,10 @@ game = {
 		if (this.on === 0) return;
 		this.on = 0;
 		
+		//убираем стикеры если их видно
+		if (objects.stickers_cont.visible===true)
+			stickers.hide_panel();
+		
 		//показыаем карточки
 		anim2.add(objects.my_card_cont,{x:[objects.my_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
 		anim2.add(objects.opp_card_cont,{x:[objects.opp_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
@@ -2287,6 +2168,138 @@ game = {
 		
 		set_state({state : 'o'});			
 				
+	}
+	
+}
+
+awaiter = {
+	
+	slots : [null, null, null],
+	
+	add : function(time) {
+		
+		for (var i=0;i<3;i++) {
+			if (this.slots[i] === null) {
+				this.slots[i] = {resolve : 0 , time : time, start_time : game_tick};		
+				break;
+			}			
+		}		
+		
+		return new Promise(resolve => {			
+			this.slots[i].resolve = resolve;			
+		})
+	},
+	
+	kill_all : function() {
+		
+		for (let i=0;i<3;i++) {		
+			if (this.slots[i] !== null) {
+				this.slots[i].resolve(false);					
+				this.slots[i]=null;
+			}			
+		}		
+	},
+		
+	process : function() {
+		
+		for (let i=0;i<3;i++) {		
+			if (this.slots[i] !== null) {
+				if (game_tick - this.slots[i].start_time > this.slots[i].time) {
+					this.slots[i].resolve(true);					
+					this.slots[i]=null;
+				}				
+			}			
+		}	
+	}
+	
+}
+
+power_buttons = {
+		
+	selected_power: 'none',
+	rem_time:{freeze:0, fire:0,block:0, },
+		
+	down : function(bonus) {
+		
+		
+		
+		
+		if (my_data.bonuses[bonus] === 0) {
+			
+			sound.play('locked');
+			return;
+		}
+
+		
+		if (this.selected_power===bonus) {
+			this.selected_power='none';				
+			my_player.set_projectile_power('none');		
+			objects.upg_button_frame.visible=false;
+		} else {
+			sound.play('click2');
+			this.selected_power=bonus;				
+			my_player.set_projectile_power(bonus);	
+			const button_ref = objects[bonus + '_button'];
+			objects.upg_button_frame.x=button_ref.x;
+			objects.upg_button_frame.y=button_ref.y;
+			objects.upg_button_frame.visible=true;
+		}
+		
+		
+		
+		
+	},
+	
+	add_bonus : function(bonus, amount) {
+		
+		sound.play('click2');
+		my_data.bonuses[bonus]+=amount;
+		firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
+		this.update_info();
+	},
+	
+	process: function() {
+		
+
+	},
+	
+	bonus_fired : function(bonus) {
+		
+		my_data.bonuses[bonus]--;	
+		firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
+		this.update_info();
+		
+		//если больше не осталось бонус копий
+		if (my_data.bonuses[bonus] === 0) {			
+			this.selected_power='none';			
+			objects.upg_button_frame.visible=false;	
+			my_player.set_projectile_power('none');				
+		}
+
+		
+		
+	},	
+
+	update_info : function() {
+		
+		objects.freeze_text.text=my_data.bonuses.freeze;
+		objects.fire_text.text=my_data.bonuses.fire;
+		objects.lightning_text.text=my_data.bonuses.lightning;
+		
+	},
+	
+	init: function () {
+		
+		
+		anim2.add(objects.power_buttons_cont,{y:[450,objects.power_buttons_cont.sy]}, true, 1,'linear');	
+		
+		this.update_info();
+	},
+	
+	close : function() {
+		anim2.kill_anim(objects.power_buttons_cont);
+		anim2.add(objects.power_buttons_cont,{y:[objects.power_buttons_cont.y,450]}, false, 1,'linear');	
+		
 	}
 	
 }
@@ -3500,9 +3513,11 @@ stickers={
 
 		
 		if (objects.big_message_cont.visible === true || objects.req_cont.visible === true || objects.stickers_cont.ready===false) {
+			sound.play('locked');
 			return;			
 		}
-
+		
+		sound.play('click');
 
 
 		//ничего не делаем если панель еще не готова
@@ -3520,6 +3535,8 @@ stickers={
 
 		if (objects.stickers_cont.ready===false)
 			return;
+		
+		sound.play('click');
 
 		//анимационное появление панели стикеров
 		anim2.add(objects.stickers_cont,{y:[objects.stickers_cont.sy, -450]}, false, 0.5,'easeInBack');
@@ -3532,29 +3549,30 @@ stickers={
 			return;			
 		}
 		
+		sound.play('click');
+		
 		if (this.promise_resolve_send!==0)
 			this.promise_resolve_send("forced");
 
 		this.hide_panel();
 
 		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"MSG",tm:Date.now(),data:id});
-		message.add(['Стикер отправлен сопернику','Sticker was sent to the opponent'][LANG]);
 
 		//показываем какой стикер мы отправили
 		objects.sent_sticker_area.texture=game_res.resources['sticker_texture_'+id].texture;
-		
-		await anim2.add(objects.sent_sticker_area,{alpha:[0, 0.5]}, true, 0.5,'linear');
+		objects.sent_sticker_area.x=objects.sent_sticker_area.sx;
+		await anim2.add(objects.sent_sticker_area,{alpha:[0, 1]}, true, 0.5,'linear');
 		
 		let res = await new Promise((resolve, reject) => {
 				stickers.promise_resolve_send = resolve;
-				setTimeout(resolve, 2000)
+				setTimeout(resolve, 1000)
 			}
 		);
 		
 		if (res === "forced")
 			return;
 
-		await anim2.add(objects.sent_sticker_area,{alpha:[0.5, 0]}, false, 0.5,'linear');
+		await anim2.add(objects.sent_sticker_area,{x:[objects.sent_sticker_area.sx, -150]}, false, 0.5,'easeInBack');
 	},
 
 	receive: async function(id) {
@@ -3564,11 +3582,11 @@ stickers={
 			this.promise_resolve_recive("forced");
 
 		//воспроизводим соответствующий звук
-		//game_res.resources.receive_sticker.sound.play();
+		sound.play('receive_sticker');
 
 		objects.rec_sticker_area.texture=game_res.resources['sticker_texture_'+id].texture;
 	
-		await anim2.add(objects.rec_sticker_area,{x:[-150, objects.rec_sticker_area.sx]}, true, 0.5,'easeOutBack');
+		await anim2.add(objects.rec_sticker_area,{x:[950, objects.rec_sticker_area.sx]}, true, 0.5,'easeOutBack');
 
 		let res = await new Promise((resolve, reject) => {
 				stickers.promise_resolve_recive = resolve;
@@ -3579,7 +3597,7 @@ stickers={
 		if (res === "forced")
 			return;
 
-		anim2.add(objects.rec_sticker_area,{x:[objects.rec_sticker_area.sx, -150]}, false, 0.5,'easeInBack');
+		anim2.add(objects.rec_sticker_area,{x:[objects.rec_sticker_area.sx, 950]}, false, 0.5,'easeInBack');
 
 	}
 
@@ -4499,8 +4517,7 @@ function vis_change() {
 		if (document.hidden === true) {
 			hidden_state_start = Date.now();				
 			sound.stop('rain');
-		}
-		
+		}			
 		
 		set_state({hidden : document.hidden});
 		
@@ -4548,6 +4565,8 @@ async function load_resources() {
 	game_res.add('buy',git_src+'sounds/buy.mp3');
 	game_res.add('invite',git_src+'sounds/invite.mp3');
 	game_res.add('start',git_src+'sounds/start.mp3');
+	game_res.add('receive_sticker',git_src+'sounds/receive_sticker.mp3');
+	
 	
     //добавляем из листа загрузки
     for (var i = 0; i < load_list.length; i++) {
@@ -4556,6 +4575,10 @@ async function load_resources() {
         if (load_list[i].class === "asprite" )
             game_res.add(load_list[i].name, git_src+"gifs/" + load_list[i].res_name);
 	}
+
+	//добавляем текстуры стикеров
+	for (var i=0;i<16;i++)
+		game_res.add("sticker_texture_"+i, git_src+"res/stickers/"+i+".png");
 
 
 	//вручную добавляем скины так как они на отдельном листе
