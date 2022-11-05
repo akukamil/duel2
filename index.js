@@ -1448,7 +1448,9 @@ mp_game = {
 			if (Math.random()>-0.6) {				
 				rating_info+='\n+1$';			
 				my_data.money+=1;
-				firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);				
+				my_data.games+=1;
+				firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);	
+				firebase.database().ref("players/"+my_data.uid+"/games").set(my_data.games);	
 			}
 		}
 		
@@ -4848,6 +4850,11 @@ async function init_game_env(env) {
 		my_data.bot_level = 0;
 	else
 		my_data.bot_level = other_data.bot_level;
+	
+	if (other_data===null || other_data.games === undefined)
+		my_data.games = 0;
+	else
+		my_data.games = other_data.games;
 	
 	
 	//идентификатор клиента
