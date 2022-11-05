@@ -196,6 +196,10 @@ function all_players() {
 		let _data = [];
 		for (let i = 0 ; i < uids.length ; i++) {
 					
+					
+			if (data[uids[i]].games === undefined) data[uids[i]].games=0;
+			if (data[uids[i]].money === undefined) data[uids[i]].money=0;
+			if (data[uids[i]].bot_level === undefined) data[uids[i]].bot_level=0;
 			_data.push([uids[i], data[uids[i]].name, data[uids[i]].rating, data[uids[i]].games, data[uids[i]].money,data[uids[i]].bot_level, data[uids[i]].tm2, data[uids[i]].tm])		
 			
 		}	
