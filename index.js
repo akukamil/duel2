@@ -1445,7 +1445,7 @@ mp_game = {
 		
 		//денежный бонус
 		if (result_str ==='my_win' || result_str ==='opp_win') {
-			if (Math.random()>-0.6) {				
+			if (Math.random()>-0.6 && my_data.rating < 1600) {				
 				rating_info+='\n+1$';			
 				my_data.money+=1;
 				my_data.games+=1;
@@ -1633,7 +1633,7 @@ sp_game = {
 		//денежный бонус
 		let text_2 = ')))';
 		if (result_str ==='my_win' || result_str ==='opp_win') {
-			if (Math.random()>0.6) {				
+			if (Math.random()>0.6 && my_data.rating < 1600) {				
 				text_2='+1$';			
 				my_data.money+=1;
 				firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);				
