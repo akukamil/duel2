@@ -780,6 +780,24 @@ class projectile_class extends PIXI.Container {
 	
 }
 
+class bonus_card_class extends PIXI.Container {
+	
+	constructor() {
+		
+		super();
+		this.bcg = new PIXI.Sprite(gres.freeze_bonus_bcg.texture);
+		this.bcg.anchor.set(0.5,0.5);
+		this.t = new PIXI.BitmapText('X', {fontName: 'mfont',fontSize: 45});
+		this.t.anchor.set(1,0.5);
+		this.t.x=50;
+		this.t.y=35;
+		this.addChild(this.bcg, this.t);
+		
+	}
+	
+	
+}
+
 blood = {
 	
 	last_splash_time : 0,
@@ -1442,18 +1460,7 @@ mp_game = {
 		firebase.database().ref("players/"+my_data.uid+"/rating").set(my_data.rating);
 		
 		let rating_info = ['Рейтинг: ','Rating: '][LANG] + old_rating + ' >>> ' + my_data.rating;
-		
-		//денежный бонус
-		if (result_str ==='my_win' || result_str ==='opp_win') {
-			if (Math.random()>-0.6 && my_data.rating < 1600) {				
-				rating_info+='\n+1$';			
-				my_data.money+=1;
-				my_data.games+=1;
-				firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);	
-				firebase.database().ref("players/"+my_data.uid+"/games").set(my_data.games);	
-			}
-		}
-		
+				
 		//обновляем даные на карточке
 		objects.my_card_rating.text=my_data.rating;
 				
@@ -1622,25 +1629,14 @@ sp_game = {
 		const result_str = result_row[0];		
 		const result_number = result_row[1];
 		const result_info = result_row[2][LANG];
-		
-		
+				
 		if (result_number === WIN)
 			sound.play('victory');
 		
 		if (result_number === LOSE)
 			sound.play('lose');		
-
-		//денежный бонус
-		let text_2 = ')))';
-		if (result_str ==='my_win' || result_str ==='opp_win') {
-			if (Math.random()>0.6 && my_data.rating < 1600) {				
-				text_2='+1$';			
-				my_data.money+=1;
-				firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);				
-			}
-		}
 		
-		return [result_info,text_2];
+		return [result_info,')))'];
 		
 	},
 	
@@ -1736,7 +1732,6 @@ game = {
 		objects.desktop.visible = true;
 		objects.desktop.texture = map_loader.resources.bcg.texture;
 		anim2.add(objects.desktop,{alpha:[0,1]}, true, 0.4,'linear');
-		console.log('game_start')
 		anim2.add(objects.game_cont,{alpha:[0,1]}, true, 0.4,'linear');
 		
 
@@ -1782,7 +1777,7 @@ game = {
 		
 		//показыаем карточки
 		anim2.add(objects.my_card_cont,{x:[-100,objects.my_card_cont.sx]}, true, 0.6,'easeOutBack');	
-		anim2.add(objects.opp_card_cont,{x:[-100,objects.opp_card_cont.sx]}, true, 0.6,'easeOutBack');	
+		anim2.add(objects.opp_card_cont,{x:[850,objects.opp_card_cont.sx]}, true, 0.6,'easeOutBack');	
 				
 		//устанавливаем кто начальный игрок 
 		this.start_player = start_player;	
@@ -1916,6 +1911,11 @@ game = {
 				anim2.add(objects.fire,{alpha:[1,0]}, false, 1,'linear');			
 		}
 	
+		
+		//обрабатываем вращение бонусных карточек
+		for (let b=0;b<4;b++)
+			if (objects.bonus_cards[b].visible===true)
+				objects.bonus_cards[b].rotation=Math.sin(game_tick*2+b)*0.2;
 
 				
 		objects.projectiles.forEach(p=>p.process());
@@ -2142,9 +2142,9 @@ game = {
 		if (objects.stickers_cont.visible===true)
 			stickers.hide_panel();
 		
-		//показыаем карточки
+		//убираем карточки
 		anim2.add(objects.my_card_cont,{x:[objects.my_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
-		anim2.add(objects.opp_card_cont,{x:[objects.opp_card_cont.sx,-100]}, false, 0.4,'easeInBack');	
+		anim2.add(objects.opp_card_cont,{x:[objects.opp_card_cont.sx,850]}, false, 0.4,'easeInBack');	
 		
 		awaiter.kill_all();
 		
@@ -2157,6 +2157,10 @@ game = {
 		power_buttons.close();
 			
 		const res_text = this.opponent.close(result);
+		
+		//бонусы за окончание игры
+		if (result === 'my_win' || result==='my_lose')
+			this.add_bonuses();
 				
 		await big_message.show(res_text[0], res_text[1]);
 		
@@ -2171,6 +2175,62 @@ game = {
 		
 		set_state({state : 'o'});			
 				
+	},
+	
+	add_bonuses : async function() {
+		
+	
+		//определяем сколько бонусов выдать по результатам игры
+		const total_value = shop.get_total_value();
+		console.log(total_value);
+		let new_bonuses = {'freeze':0,'fire':0,'lightning':0,'money':0};
+		if (total_value < 50) {			
+			new_bonuses['freeze'] = irnd(0,3);
+			new_bonuses['fire']=irnd(0,3);
+			new_bonuses['lightning']=irnd(0,3);
+			new_bonuses['money'] = irnd(0,3);			
+		} else {
+			new_bonuses['freeze'] = irnd(0,1);
+			new_bonuses['fire']=irnd(0,1);
+			new_bonuses['lightning']=irnd(0,1);
+			new_bonuses['money'] = irnd(0,1);	
+		}
+			
+		
+		await new Promise((resolve, reject) => {setTimeout(resolve, 500);});
+		
+		let iter=0;
+		for (let b of ['freeze','fire','lightning','money']) {
+			if (new_bonuses[b]>0) {				
+				objects.bonus_cards[iter].t.text='+'+new_bonuses[b];
+				objects.bonus_cards[iter].bcg.texture=gres[b+'_bonus_bcg'].texture;	
+				sound.play('bonus');
+				objects.bonus_cards[iter].y=100+iter*70;				
+				
+				if (b==='money') {
+					my_data.money+=new_bonuses[b];
+					firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);
+				} else {
+					my_data.bonuses[b]+=new_bonuses[b];
+					firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
+				}
+				
+				await anim2.add(objects.bonus_cards[iter],{x:[-50,50],rotation:[-1,0.2]}, true, 0.25,'linear');	
+				iter++;
+			}			
+		}
+
+
+		//ждем немного
+		await new Promise((resolve, reject) => {setTimeout(resolve, 2000);});
+		
+		//убираем бонусные карты
+		for(let card of objects.bonus_cards)
+			if (card.visible===true)
+				await anim2.add(card,{x: [50,-50]}, false, 0.25,'easeInBack');	
+
+
+		
 	}
 	
 }
@@ -3186,8 +3246,9 @@ shop = {
 	
 	cur_hero : 0,
 	cur_spear : 0,
+	spear_prices : {'freeze':10,'fire':5,'lightning':15},
 	spears_list : ['freeze','fire','lightning'],
-	hero_prices : [0,10,30,50,80,120,200,250,300,350,500],
+	hero_prices : [0,10,30,50,80,150,300,450,600,350,500],
 	
 	activate : function() {		
 	
@@ -3246,7 +3307,7 @@ shop = {
 		objects.shop_spear.texture=gres['projectile_'+cur_spear_name].texture;
 		objects.shop_spear_title.text = spear_name_translator[cur_spear_name][LANG] + ' (x' +my_data.bonuses[cur_spear_name]+')';
 		
-		const price = my_data.bonuses[cur_spear_name]*3+10;
+		const price = this.spear_prices[cur_spear_name];	;
 		objects.shop_spear_price.text = ['Цена: ','Price: '][LANG] + price+'$';
 		objects.shop_spear_info.text =spear_info[cur_spear_name];
 		
@@ -3294,7 +3355,7 @@ shop = {
 			return;
 		
 		const cur_spear_name = this.spears_list[this.cur_spear];
-		const price = my_data.bonuses[cur_spear_name]*3+10;		
+		const price = this.spear_prices[cur_spear_name];		
 		
 		if (my_data.money < price) {
 			this.show_info(['Недостаточно денег','Not enough money'][LANG]);
@@ -3333,6 +3394,17 @@ shop = {
 		sound.play('click');
 		this.close();
 		main_menu.activate();
+		
+	},
+	
+	get_total_value : function() {
+		
+		let total_sum=0;
+		for (const b of this.spears_list)
+			total_sum += my_data.bonuses[b]*this.spear_prices[b];		
+		total_sum+=this.hero_prices[my_data.hero_id];
+		total_sum+=my_data.money;		
+		return total_sum;
 		
 	},
 	
@@ -4536,8 +4608,8 @@ async function load_resources() {
 
 	document.getElementById("m_progress").style.display = 'flex';
 
-	let git_src="https://akukamil.github.io/duel2/"
-	//git_src=""
+	//let git_src="https://akukamil.github.io/duel2/"
+	git_src=""
 
 	//подпапка с ресурсами
 	let lang_pack = ['RUS','ENG'][LANG];
@@ -4568,6 +4640,7 @@ async function load_resources() {
 	game_res.add('buy',git_src+'sounds/buy.mp3');
 	game_res.add('invite',git_src+'sounds/invite.mp3');
 	game_res.add('start',git_src+'sounds/start.mp3');
+	game_res.add('bonus',git_src+'sounds/bonus.mp3');
 	game_res.add('receive_sticker',git_src+'sounds/receive_sticker.mp3');
 	
 	
@@ -4869,7 +4942,7 @@ async function init_game_env(env) {
 		room_name= 'states2';			
 	else
 		room_name= 'states';
-	room_name= 'states2';
+
 	
 	//устанавливаем рейтинг в попап
 	objects.id_rating.text=objects.my_card_rating.text=my_data.rating;
