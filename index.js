@@ -3085,7 +3085,7 @@ req_dialog = {
 		game_id=~~(Math.random()*999);
 		const fp = irnd(0,1);
 		const map_id = irnd(0,12);
-		const w_dev = rnd2(-0.05,0.05);
+		const w_dev = rnd2(-0.1,0.1);
 		
 		
 		//отправляем данные о начальных параметрах игры сопернику
