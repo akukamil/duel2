@@ -4938,10 +4938,7 @@ async function init_game_env(env) {
 		my_data.games = other_data.games || 0;
 						
 	//номер комнаты
-	if (my_data.rating >= 222500)
-		room_name= 'states2';			
-	else
-		room_name= 'states';
+	room_name= 'states2'
 
 	
 	//устанавливаем рейтинг в попап
