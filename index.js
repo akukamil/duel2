@@ -2403,7 +2403,7 @@ start_game = {
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
 		const  map_data = eval(map_loader.resources.map_load_list.data);
-
+		this.on = 1;
 		
 		//загружаем картинки в соответствии с листом загрузки
 		for (var i = 0; i < map_data.length; i++)
@@ -2411,6 +2411,7 @@ start_game = {
 				map_loader.add(map_data[i].name, git_src+'map'+map_id+'/' + map_data[i].name + "." +  map_data[i].image_format);
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
 		
+		if (this.on === 0) return;
 				
 		//устанаваем объекты сцены
 		for (var i = 0; i < map_data.length; i++) {
