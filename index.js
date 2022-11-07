@@ -3236,9 +3236,9 @@ shop = {
 		const cur_spear_name = this.spears_list[this.cur_spear];
 		const spear_name_translator = {'freeze':['ФРИЗ','FREEZE'],'fire':['ОГОНЬ','FIRE'],'lightning':['МОЛНИЯ','LIGHTNING']}
 		const spear_info = {
-			'freeze':['замораживает соперника на один ход, наносит дополнительный урон','---------'],
-			'fire':['поджигает соперника, наносит дополнительный урон','-------------'],
-			'lightning':['вызывает молнию, нансоит дополнительный урон, нужно попасть в платформу','------------']
+			'freeze':['замораживает соперника на один ход, наносит дополнительный урон','freezes the opponent for one turn, make additional damage'][LANG],
+			'fire':['поджигает соперника, наносит дополнительный урон','sets fire to the opponent, make additional damage'][LANG],
+			'lightning':['вызывает молнию, нансоит дополнительный урон, нужно попасть в платформу','causes lightning, make additional damage, you need to hit the platform'][LANG]
 		};
 		
 		
@@ -3248,7 +3248,7 @@ shop = {
 		
 		const price = my_data.bonuses[cur_spear_name]*3+10;
 		objects.shop_spear_price.text = ['Цена: ','Price: '][LANG] + price+'$';
-		objects.shop_spear_info.text =spear_info[cur_spear_name][LANG];
+		objects.shop_spear_info.text =spear_info[cur_spear_name];
 		
 	},	
 		
@@ -3297,12 +3297,12 @@ shop = {
 		const price = my_data.bonuses[cur_spear_name]*3+10;		
 		
 		if (my_data.money < price) {
-			this.show_info('Недостаточно денег');
+			this.show_info(['Недостаточно денег','Not enough money'][LANG]);
 			sound.play('locked');
 			return;
 		}
 		
-		this.show_info('Куплено!!!');
+		this.show_info(['Куплено!!!','Purchased!!!'][LANG]);
 		
 		sound.play('buy');
 
