@@ -3260,7 +3260,7 @@ shop = {
 			return;
 		
 		if (my_data.money < price) {
-			this.show_info('Недостаточно денег');
+			this.show_info(['Недостаточно денег','Not enough money'][LANG]);
 			sound.play('locked');
 			return;
 		}
@@ -3274,7 +3274,7 @@ shop = {
 		my_data.hero_id = this.cur_hero;
 		objects.shop_player.set_skin_by_prefix(hero_prefixes[my_data.hero_id]);
 		firebase.database().ref("players/"+my_data.uid+"/hero_id").set(my_data.hero_id);
-		this.show_info('Куплено!!!');
+		this.show_info(['Куплено!!!','Purchased!!!'][LANG]);
 
 		this.change_balance(-price);
 		
