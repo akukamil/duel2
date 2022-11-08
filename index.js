@@ -1469,7 +1469,64 @@ mp_game = {
 				
 		return [result_info,rating_info];
 		
+	},
+
+	add_bonuses : async function() {
+		
+	
+		//определяем сколько бонусов выдать по результатам игры
+		const total_value = shop.get_total_value();
+		console.log(total_value);
+		let new_bonuses = {'freeze':0,'fire':0,'lightning':0,'money':0};
+		if (total_value < 50) {			
+			new_bonuses['freeze'] = irnd(0,3);
+			new_bonuses['fire']=irnd(0,3);
+			new_bonuses['lightning']=irnd(0,3);
+			new_bonuses['money'] = irnd(0,3);			
+		} else {
+			new_bonuses['freeze'] = irnd(0,1);
+			new_bonuses['fire']=irnd(0,1);
+			new_bonuses['lightning']=irnd(0,1);
+			new_bonuses['money'] = irnd(0,1);	
+		}
+			
+		
+		await new Promise((resolve, reject) => {setTimeout(resolve, 500);});
+		
+		let iter=0;
+		for (let b of ['freeze','fire','lightning','money']) {
+			if (new_bonuses[b]>0) {				
+				objects.bonus_cards[iter].t.text='+'+new_bonuses[b];
+				objects.bonus_cards[iter].bcg.texture=gres[b+'_bonus_bcg'].texture;	
+				sound.play('bonus');
+				objects.bonus_cards[iter].y=100+iter*70;				
+				
+				if (b==='money') {
+					my_data.money+=new_bonuses[b];
+					firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);
+				} else {
+					my_data.bonuses[b]+=new_bonuses[b];
+					firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
+				}
+				
+				await anim2.add(objects.bonus_cards[iter],{x:[-50,50],rotation:[-1,0.2]}, true, 0.25,'linear');	
+				iter++;
+			}			
+		}
+
+
+		//ждем немного
+		await new Promise((resolve, reject) => {setTimeout(resolve, 2000);});
+		
+		//убираем бонусные карты
+		for(let card of objects.bonus_cards)
+			if (card.visible===true)
+				await anim2.add(card,{x: [50,-50]}, false, 0.25,'easeInBack');	
+
+
+		
 	}
+	
 	
 }
 
@@ -2178,62 +2235,7 @@ game = {
 				
 	},
 	
-	add_bonuses : async function() {
-		
-	
-		//определяем сколько бонусов выдать по результатам игры
-		const total_value = shop.get_total_value();
-		console.log(total_value);
-		let new_bonuses = {'freeze':0,'fire':0,'lightning':0,'money':0};
-		if (total_value < 50) {			
-			new_bonuses['freeze'] = irnd(0,3);
-			new_bonuses['fire']=irnd(0,3);
-			new_bonuses['lightning']=irnd(0,3);
-			new_bonuses['money'] = irnd(0,3);			
-		} else {
-			new_bonuses['freeze'] = irnd(0,1);
-			new_bonuses['fire']=irnd(0,1);
-			new_bonuses['lightning']=irnd(0,1);
-			new_bonuses['money'] = irnd(0,1);	
-		}
-			
-		
-		await new Promise((resolve, reject) => {setTimeout(resolve, 500);});
-		
-		let iter=0;
-		for (let b of ['freeze','fire','lightning','money']) {
-			if (new_bonuses[b]>0) {				
-				objects.bonus_cards[iter].t.text='+'+new_bonuses[b];
-				objects.bonus_cards[iter].bcg.texture=gres[b+'_bonus_bcg'].texture;	
-				sound.play('bonus');
-				objects.bonus_cards[iter].y=100+iter*70;				
-				
-				if (b==='money') {
-					my_data.money+=new_bonuses[b];
-					firebase.database().ref("players/"+my_data.uid+"/money").set(my_data.money);
-				} else {
-					my_data.bonuses[b]+=new_bonuses[b];
-					firebase.database().ref("players/"+my_data.uid+"/bonuses").set(my_data.bonuses);
-				}
-				
-				await anim2.add(objects.bonus_cards[iter],{x:[-50,50],rotation:[-1,0.2]}, true, 0.25,'linear');	
-				iter++;
-			}			
-		}
 
-
-		//ждем немного
-		await new Promise((resolve, reject) => {setTimeout(resolve, 2000);});
-		
-		//убираем бонусные карты
-		for(let card of objects.bonus_cards)
-			if (card.visible===true)
-				await anim2.add(card,{x: [50,-50]}, false, 0.25,'easeInBack');	
-
-
-		
-	}
-	
 }
 
 awaiter = {
