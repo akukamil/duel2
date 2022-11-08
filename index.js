@@ -1435,6 +1435,7 @@ mp_game = {
 			sound.play('lose');		
 		
 		
+		
 		const res_array = [
 			['my_cancel',LOSE, ['Вы проиграли!\nВы отменили игру','You lose!\nYou canceled the game']],
 			['no_sync',NOSYNC , ['Похоже соперник не смог начать игру','It looks like the opponent could not start the game']],
@@ -1453,7 +1454,9 @@ mp_game = {
 		const result_number = result_row[1];
 		const result_info = result_row[2][LANG];
 		
-
+		//бонусы за окончание игры
+		if (result === 'my_win' || result==='my_lose')
+			this.add_bonuses();
 		
 		const old_rating = my_data.rating;
 		my_data.rating = this.calc_new_rating (my_data.rating, result_number);
@@ -2158,9 +2161,7 @@ game = {
 			
 		const res_text = this.opponent.close(result);
 		
-		//бонусы за окончание игры
-		if (result === 'my_win' || result==='my_lose')
-			this.add_bonuses();
+
 				
 		await big_message.show(res_text[0], res_text[1]);
 		
