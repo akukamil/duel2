@@ -4740,9 +4740,9 @@ async function define_platform_and_language(env) {
 		return;
 	}
 	
-	if (s.includes('google_play')) {
+	if (s.includes('crazygames')) {
 			
-		game_platform = 'GOOGLE_PLAY';	
+		game_platform = 'CRAZYGAMES';	
 		LANG = await language_dialog.show();
 		return;
 	}	
