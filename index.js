@@ -3096,7 +3096,7 @@ req_dialog = {
 		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"ACCEPT", tm:Date.now(), game_id : game_id, w_dev : w_dev, fp : 1 - fp, map_id : map_id});
 
 		//заполняем карточку оппонента
-		make_text(objects.opp_card_name,opp_data.name,150);
+		make_text(objects.opp_card_name,opp_data.name,100);
 		objects.opp_card_rating.text=objects.req_rating.text;
 		objects.opp_avatar.texture=objects.req_avatar.texture;
 
@@ -4319,7 +4319,7 @@ cards_menu={
 		opp_data=cards_menu._opp_data;
 		
 		//сразу карточку оппонента
-		make_text(objects.opp_card_name,opp_data.name,160);
+		make_text(objects.opp_card_name,opp_data.name,100);
 		objects.opp_card_rating.text=opp_data.rating;
 		objects.opp_avatar.texture=objects.invite_avatar.texture;		
 
@@ -4889,7 +4889,7 @@ async function init_game_env(env) {
 
 	//устанавлием мое имя в карточки
 	make_text(objects.id_name,my_data.name,150);
-	make_text(objects.my_card_name,my_data.name,150);
+	make_text(objects.my_card_name,my_data.name,100);
 	
 	//разные события
 	document.addEventListener("visibilitychange", vis_change);
