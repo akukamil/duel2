@@ -4402,7 +4402,7 @@ auth2 = {
 	},	
 	
 	get_country_code : async function() {
-		
+		return '';
 		let country_code = ''
 		try {
 			let resp1 = await fetch("https://ipinfo.io/json");
