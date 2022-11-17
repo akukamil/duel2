@@ -4922,7 +4922,7 @@ async function init_game_env(env) {
 		my_data.games = other_data.games;
 		
 	//добавляем информацию о стране
-	const country =  other_data.country || await auth2.get_country_code();
+	const country =  (other_data && other_data.country) || await auth2.get_country_code();
 	
 	
 		
