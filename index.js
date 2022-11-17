@@ -4877,9 +4877,7 @@ async function init_game_env(env) {
 	//устанавливаем фотки в попап и другие карточки
 	objects.id_avatar.texture = objects.my_avatar.texture = loader.resources.my_avatar.texture;
 
-	//устанавлием мое имя в карточки
-	make_text(objects.id_name,my_data.name,150);
-	make_text(objects.my_card_name,my_data.name,100);
+
 	
 	//разные события
 	document.addEventListener("visibilitychange", vis_change);
@@ -4960,6 +4958,10 @@ async function init_game_env(env) {
 	
 	//добавляем страну в имя
 	my_data.name = my_data.name+' (' +country +')'
+	
+	//устанавлием мое имя в карточки
+	make_text(objects.id_name,my_data.name,150);
+	make_text(objects.my_card_name,my_data.name,100);
 	
 	//устанавливаем мой статус в онлайн
 	set_state({state : 'o'});
