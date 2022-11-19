@@ -4405,7 +4405,7 @@ auth2 = {
 
 		let country_code = ''
 		try {
-			let resp1 = await fetch("https://ipinfo.io/json");
+			let resp1 = await fetch("https://ipinfo.io/json?token=a3455d3185ba47",{ signal: AbortSignal.timeout(3000) });
 			let resp2 = await resp1.json();			
 			country_code = resp2.country || '';			
 		} catch(e){}
