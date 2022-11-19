@@ -4274,7 +4274,7 @@ cards_menu={
 		if (objects.invite_cont.ready===false || objects.invite_cont.visible===false)
 			return;
 
-		if (anim2.any_on() === true) {
+		if (anim2.any_on() === true || ['Ждите ответ..','Waiting...'].includes(objects.invite_button_title.text)) {
 			sound.play('locked');
 			return
 		};
