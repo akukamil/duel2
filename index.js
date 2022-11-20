@@ -4405,9 +4405,9 @@ auth2 = {
 
 		let country_code = ''
 		try {
-			let resp1 = await fetch("https://ipinfo.io/json?token=a3455d3185ba47",{ signal: AbortSignal.timeout(3000) });
+			let resp1 = await fetch("https://api.ipgeolocation.io/ipgeo?apiKey=4c6d2cb089694af98693c69b8d65d39a",{ signal: AbortSignal.timeout(3000) });
 			let resp2 = await resp1.json();			
-			country_code = resp2.country || '';			
+			country_code = resp2.country_code2 || '';			
 		} catch(e){}
 
 		return country_code;
