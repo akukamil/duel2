@@ -1748,7 +1748,7 @@ game = {
 		objects.s_obj2.visible=false;
 		
 		//случайная дельта чтобы не было одно и тоже
-		touch.wind_dev = rnd2(-0.2,0.2);
+		touch.wind_dev = rnd2(-0.15,0.15);
 		
 		
 		objects.loading_info.visible=true;
