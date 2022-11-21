@@ -1742,6 +1742,14 @@ game = {
 	activate : async function(start_player, opponent, map_id){
 				
 
+		//убираем объекты так как они могли остаться от предыдущих игр
+		objects.s_obj0.visible=false;
+		objects.s_obj1.visible=false;
+		objects.s_obj2.visible=false;
+		
+		//случайная дельта чтобы не было одно и тоже
+		touch.wind_dev = rnd2(-0.2,0.2);
+		
 		
 		objects.loading_info.visible=true;
 		
@@ -1752,7 +1760,7 @@ game = {
 		
 	
 		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
-		//map_id = 10;
+		//map_id = 13;
 		var map_loader = new PIXI.Loader();	
 		map_loader.add("map_load_list", "map"+map_id+"/map_load_list.txt",{timeout: 5000});
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
@@ -2398,6 +2406,7 @@ start_game = {
 		//убираем объекты так как они могли остаться от предыдущих игр
 		objects.s_obj0.visible=false;
 		objects.s_obj1.visible=false;
+		objects.s_obj2.visible=false;
 		
 		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
 		map_id = 10;
@@ -2661,7 +2670,7 @@ touch = {
 	Q:0,
 	moved:0,
 	touch_len:0,
-	w_dev : 0,
+	wind_dev : 0,
 
 	touch_data : {
 		x0: 0,
@@ -2743,7 +2752,7 @@ touch = {
 		my_turn = 0;		
 		
 		//запускаем локальный снаряд и получаем его ссылку
-		let Q = r2(this.Q + this.w_dev);
+		let Q = r2(this.Q + this.wind_dev);
 		let P = this.touch_len*0.6;
 		
 		//отправляем сопернику
@@ -2955,7 +2964,6 @@ process_new_message=function(msg) {
 		//в данном случае я мастер и хожу вторым
 		opp_data.uid=msg.sender;
 		game_id=msg.game_id;
-		touch.w_dev = msg.w_dev;
 		cards_menu.accepted_invite(msg);
 	}
 
@@ -3088,12 +3096,11 @@ req_dialog = {
 		//отправляем информацию о согласии играть с идентификатором игры
 		game_id=~~(Math.random()*999);
 		const fp = irnd(0,1);
-		const map_id = irnd(0,12);
-		const w_dev = rnd2(-0.1,0.1);
+		const map_id = irnd(0,13);
 		
 		
 		//отправляем данные о начальных параметрах игры сопернику
-		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"ACCEPT", tm:Date.now(), game_id : game_id, w_dev : w_dev, fp : 1 - fp, map_id : map_id});
+		firebase.database().ref("inbox/"+opp_data.uid).set({sender:my_data.uid,message:"ACCEPT", tm:Date.now(), game_id : game_id, w_dev:0, fp : 1 - fp, map_id : map_id});
 
 		//заполняем карточку оппонента
 		make_text(objects.opp_card_name,opp_data.name,100);
@@ -3103,8 +3110,7 @@ req_dialog = {
 		main_menu.close();
 		cards_menu.close();
 		sp_game.switch_close();
-		
-		touch.w_dev = w_dev;
+
 		game.activate(fp, mp_game, map_id);
 
 	},
