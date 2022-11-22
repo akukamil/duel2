@@ -4407,17 +4407,43 @@ auth2 = {
 		}	
 	},	
 	
-	get_country_code : async function() {
+	get_country_code : function() {
 
-		let country_code = ''
-		try {
-			let resp1 = await fetch("https://api.ipgeolocation.io/ipgeo?apiKey=4c6d2cb089694af98693c69b8d65d39a",{ signal: AbortSignal.timeout(3000) });
-			let resp2 = await resp1.json();			
-			country_code = resp2.country_code2 || '';			
-		} catch(e){}
-
-		return country_code;
+		return new Promise(resolve=>{
+			
+			setTimeout(function(){resolve('')}, 3000);
+			
+			try {
+				
+				fetch("https://api.ipgeolocation.io/ipgeo?apiKey=4c6d2cb089694af98693c69b8d65d39a")
+				.then((resp1)=>{return resp1.json()})
+				.then((resp2)=>{resolve(resp2.country_code2)});
+	
+			} catch(e){				
+				resolve ('');
+			}	
+			
+		})	
 		
+	},
+	
+	get_country_code2 : function() {
+
+		return new Promise(resolve=>{
+			
+			setTimeout(function(){resolve('')}, 3000);
+			
+			try {
+				
+				fetch("https://ipinfo.io/json?token=63f43de65702b8")
+				.then((resp1)=>{return resp1.json()})
+				.then((resp2)=>{resolve(resp2.country)});
+	
+			} catch(e){				
+				resolve ('');
+			}	
+			
+		})			
 	},
 	
 	search_in_local_storage : function() {
@@ -4766,6 +4792,7 @@ async function define_platform_and_language(env) {
 
 async function init_game_env(env) {
 				
+				
 	await define_platform_and_language(env);
 	console.log(game_platform, LANG);
 						
@@ -4882,8 +4909,6 @@ async function init_game_env(env) {
 
 	//устанавливаем фотки в попап и другие карточки
 	objects.id_avatar.texture = objects.my_avatar.texture = loader.resources.my_avatar.texture;
-
-
 	
 	//разные события
 	document.addEventListener("visibilitychange", vis_change);
@@ -4928,10 +4953,9 @@ async function init_game_env(env) {
 		my_data.games = other_data.games;
 		
 	//добавляем информацию о стране
-	const country =  (other_data && other_data.country) || await auth2.get_country_code();
+	const country =  (other_data && other_data.country) || await auth2.get_country_code( )|| await auth2.get_country_code2();
 	
-	
-		
+
 	//идентификатор клиента
 	client_id = irnd(10,999999);
 
