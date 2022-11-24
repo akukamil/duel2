@@ -4918,54 +4918,23 @@ async function init_game_env(env) {
 	let other_data = _other_data.val();
 	
 	//это защита от неправильных данных
-	if (other_data===null || isNaN(other_data.rating))
-		my_data.rating = 1400;
-	else
-		my_data.rating = other_data.rating;
-		
-	
-	if (other_data===null || isNaN(other_data.hero_id))
-		my_data.hero_id = 0;
-	else
-		my_data.hero_id = other_data.hero_id;
+	my_data.rating = other_data?.rating || 1400;
+	my_data.hero_id = other_data?.hero_id || 0;
+	my_data.money = other_data?.money || 0;
+	my_data.bonuses = other_data?.bonuses || {freeze:0, fire:0,lightning:0};
+	my_data.bot_level = other_data?.bot_level || 0;
+	my_data.games = other_data?.games || 0;
 
-	
-	if (other_data===null || isNaN(other_data.money))
-		my_data.money = 0;
-	else
-		my_data.money = other_data.money;
-
-	
-	if (other_data===null || other_data.bonuses === undefined)
-		my_data.bonuses = {freeze:0, fire:0,lightning:0};
-	else
-		my_data.bonuses = other_data.bonuses;
-
-
-	if (other_data===null || other_data.bot_level === undefined)
-		my_data.bot_level = 0;
-	else
-		my_data.bot_level = other_data.bot_level;
-	
-	if (other_data===null || other_data.games === undefined)
-		my_data.games = 0;
-	else
-		my_data.games = other_data.games;
 		
 	//добавляем информацию о стране
-	const country =  (other_data && other_data.country) || await auth2.get_country_code() || await auth2.get_country_code2();
+	const country =  other_data?.country || await auth2.get_country_code() || await auth2.get_country_code2();
 	
 
 	//идентификатор клиента
 	client_id = irnd(10,999999);
-
-	other_data===null ?
-		my_data.games = 0 :
-		my_data.games = other_data.games || 0;
 						
 	//номер комнаты
 	room_name= 'states2'
-
 	
 	//устанавливаем рейтинг в попап
 	objects.id_rating.text=objects.my_card_rating.text=my_data.rating;
