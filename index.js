@@ -4807,13 +4807,13 @@ async function init_game_env(env) {
 	//инициируем файербейс
 	if (firebase.apps.length===0) {
 		firebase.initializeApp({			
-			apiKey: "AIzaSyA_cd8VMgkhse_4uzEhO8qfearHzdl_bgs",
-			authDomain: "duel2-3fa39.firebaseapp.com",
-			databaseURL: "https://duel2-3fa39-default-rtdb.europe-west1.firebasedatabase.app",
-			projectId: "duel2-3fa39",
-			storageBucket: "duel2-3fa39.appspot.com",
-			messagingSenderId: "958114056260",
-			appId: "1:958114056260:web:1e7e191c2538639e835411"
+			apiKey: "AIzaSyAeoRG7nAiFuwGO1YPpywpAbjntzBKN2yA",
+			authDomain: "duel2n.firebaseapp.com",
+			databaseURL: "https://duel2n-default-rtdb.europe-west1.firebasedatabase.app",
+			projectId: "duel2n",
+			storageBucket: "duel2n.appspot.com",
+			messagingSenderId: "431209862903",
+			appId: "1:431209862903:web:e575c7f704fca7e01fa5f2"
 		});
 	}
 
