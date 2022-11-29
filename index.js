@@ -1760,7 +1760,7 @@ game = {
 		
 	
 		//console.log("Загружаем текстуру "+objects.mini_cards[id].name)
-		//map_id = 13;
+		//map_id = 14;
 		var map_loader = new PIXI.Loader();	
 		map_loader.add("map_load_list", "map"+map_id+"/map_load_list.txt",{timeout: 5000});
 		await new Promise(function(resolve, reject) {map_loader.load(function(l,r) {	resolve(l)});});
@@ -3096,7 +3096,7 @@ req_dialog = {
 		//отправляем информацию о согласии играть с идентификатором игры
 		game_id=~~(Math.random()*999);
 		const fp = irnd(0,1);
-		const map_id = irnd(0,13);
+		const map_id = irnd(0,14);
 		
 		
 		//отправляем данные о начальных параметрах игры сопернику
