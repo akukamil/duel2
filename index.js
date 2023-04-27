@@ -3132,7 +3132,7 @@ main_menu= {
 	activate: async function() {
 
 
-		sound.play_loop('rain', true)
+		//sound.play_loop('rain', true)
 		start_game.activate();
 		objects.start_game_cover.visible = true;
 		objects.start_game_cover.alpha = objects.start_game_cover.base_alpha;
