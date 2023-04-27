@@ -3154,7 +3154,7 @@ main_menu= {
 	close : async function() {
 		
 		start_game.close();
-		sound.stop('rain')
+		//sound.stop('rain')
 
 		anim2.add(objects.start_game_cover,{alpha:[0.5,0]}, false, 0.5,'linear');
 		//some_process.main_menu = function(){};
@@ -4617,7 +4617,7 @@ function vis_change() {
 
 		if (document.hidden === true) {
 			hidden_state_start = Date.now();				
-			sound.stop('rain');
+			//sound.stop('rain');
 		}			
 		
 		set_state({hidden : document.hidden});
@@ -4662,7 +4662,7 @@ async function load_resources() {
 	game_res.add('hit_body',git_src+'sounds/hit_body.mp3');
 	game_res.add('hit_dead',git_src+'sounds/hit_dead.mp3');
 	game_res.add('victory',git_src+'sounds/victory.mp3');
-	game_res.add('rain',git_src+'sounds/rain.mp3');
+	//game_res.add('rain',git_src+'sounds/rain.mp3');
 	game_res.add('buy',git_src+'sounds/buy.mp3');
 	game_res.add('invite',git_src+'sounds/invite.mp3');
 	game_res.add('start',git_src+'sounds/start.mp3');
